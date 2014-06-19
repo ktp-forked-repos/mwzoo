@@ -1,4 +1,4 @@
 mwzoo
 =====
 
-malware zoo
+Malware Zoo
