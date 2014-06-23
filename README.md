@@ -3,6 +3,9 @@ mwzoo
 
 Malware Zoo
 
+Dependencies (required Ubuntu software packages)
+ - python-twisted
+
 Ideas:
  - Use celery to distribute tasks
  - Write simple interface definition for tasks
