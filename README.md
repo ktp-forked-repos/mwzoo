@@ -6,7 +6,7 @@ Malware Zoo
 Dependencies (required Ubuntu software packages)
  - python-twisted
  - python-pefile
-
+ - python-pymongo
 Ideas:
  - Use celery to distribute tasks
  - Write simple interface definition for tasks
