@@ -7,16 +7,27 @@
 from twisted.web import server, resource
 from twisted.internet import reactor
 
-class HelloResource(resource.Resource):
+class MalwareZoo(resource.Resource):
+    pass
+
+class FileUploadHandler(resource.Resource):
     isLeaf = True
-    numberRequests = 0
     
     def render_GET(self, request):
-        self.numberRequests += 1
         request.setHeader("content-type", "text/plain")
-        return "I am request #" + str(self.numberRequests) + "\n"
+        return "sup bro"
+
+    def render_POST(self, request):
+        if 'file' not in request.args:
+            request.setResponseCode(500)
+            return 'missing file argument'
+
+        return 'sent {0} bytes'.format(len(request.args['file'][0]))
 
 
 if __name__ == '__main__':
-    reactor.listenTCP(8081, server.Site(HelloResource()))
+    root = MalwareZoo()
+    root.putChild("upload", FileUploadHandler())
+    
+    reactor.listenTCP(8081, server.Site(root))
     reactor.run()
