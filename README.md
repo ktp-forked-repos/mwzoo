@@ -7,6 +7,7 @@ Dependencies (required Ubuntu software packages)
  - python-twisted
  - python-pefile
  - python-pymongo
+ - mongodb-org
 
 Ideas:
  - Use celery to distribute tasks
