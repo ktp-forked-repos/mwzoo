@@ -10,8 +10,12 @@ import os, os.path
 import ConfigParser
 import hashlib
 
+# twisted
 from twisted.web import server, xmlrpc, resource
 from twisted.internet import reactor
+
+# mongo
+from pymongo import MongoClient
 
 # global malware zoo pointer
 malware_zoo = None
@@ -34,7 +38,7 @@ class MalwareZoo(resource.Resource):
 
     def save_sample(self, file_name, file_content):
         """Saves a sample to the database, which begins processing on it.  
-            Returns the path to the file if the save was successfull, None if the file was already uploaded."""
+            Returns the path to the file if the save was successfull or if the file was already uploaded."""
         
         # calculate the sha1 hash of the file
         m = hashlib.sha1()
@@ -48,14 +52,93 @@ class MalwareZoo(resource.Resource):
 
         # have we already loaded this file?
         if os.path.exists(target_file):
-            return None
+            return target_file
 
         # save the file to disk
         with open(target_file, 'wb') as fp:
             fp.write(file_content)
     
         # save metadata to the database
-        # TODO
+        client = MongoClient()
+        db = client['mwzoo']
+        collection = db['analysis']
+        collection.insert({
+            'storage': target_file,
+            'name': [ target_file ] ,
+            'hashes': {
+                'md5': None,
+                'sha1': sha1_hash,
+                'sha256': None,
+                'pehash': None,
+                'imphash': None,
+                'ssdeep': None
+            },
+            'strings': {
+                'unicode': [],
+                'ascii': []
+            },
+            'imports': [ 
+                #{
+                    #'module': string,
+                    #function_name: string,
+                    #ord: int
+                #} 
+            ],
+            'sections': [ 
+                #{
+                    #name: string
+                    #md5 : string
+                    #rva: int
+                    #raw_sz: int
+                    #virtual_sz: int
+                #} ]
+            ],
+            'exports': [ 
+                #{
+                    #function_name: string
+                    #ord: int
+                #} ]
+            ],
+            'packers': [],
+            'street_names': [
+                #{
+                    #vendor: {}
+                    #streetname: {}
+                #}]
+            ],
+            'pe_header': {
+                'machine_build': None,
+                'number_of_sections': None,
+                'time_date_stamp': None,
+                'pointer_to_symbol_table': None,
+                'number_of_symbols': None,
+                'size_of_optional_header': None,
+                'characteristics': None,
+                'optional_header': {
+                    'magic': None,
+                    'linker_version': None,
+                    'size_of_code': None,
+                },
+            },
+            'tags': [],
+            'behavior': [
+                #{
+                    #sandbox_name: {}    // ex cuckoo
+                    #sandbox_version: {} // ex 1.0.0
+                    #image_name: {}      // ex windows 7 32
+                    #c2: []          
+                    #mutexes: []
+                    #files_created: []
+                    #files_modified: []
+                    #files_deleted: []
+                    #registry_created: []
+                    #registry_modified: []
+                    #registry_deleted: []
+                #]}
+            ],
+            'exifdata': {},
+            'source': []      # where did this file come from?
+        })
 
         return target_file
         
