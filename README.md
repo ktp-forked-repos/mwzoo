@@ -9,6 +9,7 @@ Dependencies (required Ubuntu software packages)
  - python-pymongo
  - mongodb-org (see bin/ubuntu_install_mongodb.sh)
  - python-celery
+ - rabbitmq-server
 
 Starting celery:
  - You want to run all the scripts from inside the top-level project folder
