@@ -7,8 +7,8 @@ Dependencies (required Ubuntu software packages)
  - python-twisted
  - python-pefile
  - python-pymongo
- - mongodb-org
- - celery
+ - mongodb-org (see bin/ubuntu_install_mongodb.sh)
+ - python-celery
 
 Starting celery:
  - You want to run all the scripts from inside the top-level project folder
