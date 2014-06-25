@@ -17,14 +17,14 @@ Starting celery:
  - Rather than pass data via messages (returns / args) using celery, I found it preferrable to write files to disk as the "outcome" for a celery task, and then later dependent tasks expect it to exist if the process succeeded. Doing this early can help prevent you from DoSing celery later on in life.
  
 Directory Layout:
- - analysis-scripts     TODO
- - bin                  program executables and scripts
- - celery-apps          celery task modules
- - etc                  malware zoo configuration files
- - lib                  extra libraries
- - malware              default storage directory for samples
- - scans                default storage directory for task output (?)
- - yara                 default storage directory for yara rules
+    analysis-scripts     TODO
+    bin                  program executables and scripts
+    celery-apps          celery task modules
+    etc                  malware zoo configuration files
+    lib                  extra libraries
+    malware              default storage directory for samples
+    scans                default storage directory for task output (?)
+    yara                 default storage directory for yara rules
 
 Ideas:
  - Use celery to distribute tasks
