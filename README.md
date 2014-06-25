@@ -20,7 +20,8 @@ Architecture:
  - python twisted webserver accepts requests for storage and retrieval
  - files are stored on disk as-in
  - analysis tasks are kicked off as celery tasks
- - output of analysis is stored in the scan/ folder
+ - FILE output of analysis is stored in the scan/ folder
+ - metadata output of analysis is stored in the various databases (configurable)
 
 Starting celery:
  - You want to run all the scripts from inside the top-level project folder
