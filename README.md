@@ -3,6 +3,10 @@ mwzoo
 
 Malware Zoo
 
+Quick Start
+ - export an environment variable called MALWARE_ZOO that points to the base directory
+ - execute bin/start-mwzoo.sh
+
 Dependencies (required Ubuntu software packages)
  - python-twisted
  - python-pefile
@@ -10,6 +14,13 @@ Dependencies (required Ubuntu software packages)
  - mongodb-org (see bin/ubuntu_install_mongodb.sh)
  - python-celery
  - rabbitmq-server
+
+Architecture:
+ - XMLRPC interface for interacting with the zoo
+ - python twisted webserver accepts requests for storage and retrieval
+ - files are stored on disk as-in
+ - analysis tasks are kicked off as celery tasks
+ - output of analysis is stored in the scan/ folder
 
 Starting celery:
  - You want to run all the scripts from inside the top-level project folder
