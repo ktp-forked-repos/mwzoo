@@ -8,7 +8,14 @@ Dependencies (required Ubuntu software packages)
  - python-pefile
  - python-pymongo
  - mongodb-org
+ - celery
 
+Starting celery:
+ - You want to run all the scripts from inside the top-level project folder
+ - sh ./bin/start-celery.sh -> Runs celery in the foreground, loads apps
+ - python ./bin/celery-yara.py FILENAME1 /PATH/TO/FILE/2 -> distribute work, results will go into ./scans/
+ - Rather than pass data via messages (returns / args) using celery, I found it preferrable to write files to disk as the "outcome" for a celery task, and then later dependent tasks expect it to exist if the process succeeded. Doing this early can help prevent you from DoSing celery later on in life.
+ 
 Ideas:
  - Use celery to distribute tasks
  - Write simple interface definition for tasks
@@ -22,6 +29,7 @@ Ideas:
  - Cuckoo is annoying and finicky and wants too much to become a "complete, do all things, solution"
 
 JSON sample metadata format:
+```
 {
     file: {
         name: [] 
@@ -94,3 +102,4 @@ JSON sample metadata format:
     source: {}      // where did this file come from?
     } // end file
 }
+```
