@@ -28,8 +28,8 @@ Ideas:
  - Make sandbox configurable or "polymorphic" so malware is unable to look for particular files to know it is running in a sandbox.
  - Cuckoo is annoying and finicky and wants too much to become a "complete, do all things, solution"
 
-JSON sample metadata format:
-{
+  JSON sample metadata format:
+  {
     file: {
         name: [] 
         hashes {
@@ -100,4 +100,4 @@ JSON sample metadata format:
     }
     source: {}      // where did this file come from?
     } // end file
-}
+  }
