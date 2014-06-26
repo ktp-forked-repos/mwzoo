@@ -19,9 +19,12 @@ fi
 # make cwd MWZOO_HOME
 cd "${MWZOO_HOME}" || { echo "unable to cd into ${MWZOO_HOME}"; exit 1; }
 
+export PYTHONPATH="celery-apps"
+
 # start the celery worker
-echo "starting celery"
-bin/start-celery.sh
+#echo "starting celery"
+#bin/start-celery.sh
 
 echo "starting mwzoo web services"
-python bin/mwzoo.py --daemonize
+#gdb --args python bin/mwzoo.py #--daemonize
+python bin/mwzoo.py #--daemonize

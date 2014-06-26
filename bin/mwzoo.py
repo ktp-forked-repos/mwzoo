@@ -9,6 +9,7 @@ import sys
 import os, os.path
 import ConfigParser
 import hashlib
+import time
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -17,10 +18,21 @@ from twisted.internet import reactor
 # mongo
 from pymongo import MongoClient
 
+# distributed tasks
+#from celery import group
+from multiprocessing import Process
+
+# analysis tasks
+from mwzoo_celery.tasks import yara_a_file
+
 # global malware zoo pointer
 malware_zoo = None
 
 class MalwareZoo(resource.Resource):
+
+    def __init__(self):
+        resource.Resource.__init__(self)
+
     def load_config(self, config_path):
         """Load configuration settings from config_path"""
         self.config = ConfigParser.ConfigParser()
@@ -140,8 +152,19 @@ class MalwareZoo(resource.Resource):
             'source': []      # where did this file come from?
         })
 
+        #
+        # (eventually use celery to distribute the tasks)
+        #
+
+        # TODO limit the total number of concurrent processes
+        # tried to use a Pool but couldn't get it to work
+        p = Process(target=self.process_sample, args=(sha1_hash, target_file))
+        p.start()
+
         return target_file
-        
+
+    def process_sample(self, sha1_hash, target_file):
+        yara_a_file(target_file)
         
 class FileUploadHandler(xmlrpc.XMLRPC):
 
