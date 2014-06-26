@@ -1,0 +1,10 @@
+How to do something:
+
+(in one terminal)
+jdavison@vm:~/projects/mwzoo$ bin/start-mwzoo.sh
+starting mwzoo web services
+
+(then in another terminal)
+
+jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && bin/submit.py
+malware/a25/a25534d24de08c18a9a0b6ba0a2ac41575260524
