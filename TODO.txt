@@ -1,0 +1,3 @@
+* get celery to actually work correct
+* add instructions/scripts to do sshfs or ipsec+nfs for the shared directories
+* add mongodb output storage to celery tasks (need to be able to store the output)
