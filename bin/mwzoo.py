@@ -23,7 +23,7 @@ from pymongo import MongoClient
 from multiprocessing import Process
 
 # analysis tasks
-from mwzoo_celery.tasks import yara_a_file
+import mwzoo_celery.tasks as mwzoo_tasks
 
 # global malware zoo pointer
 malware_zoo = None
@@ -164,7 +164,8 @@ class MalwareZoo(resource.Resource):
         return target_file
 
     def process_sample(self, sha1_hash, target_file):
-        yara_a_file(target_file)
+        mwzoo_tasks.yara_a_file(target_file)
+        mwzoo_tasks.parse_pe(target_file)
         
 class FileUploadHandler(xmlrpc.XMLRPC):
 

@@ -1,4 +1,10 @@
 #!/usr/bin/python
+# vim: ts=4:sw=4:et
+
+#
+# malware analysis tasks
+#
+
 from __future__ import absolute_import
 from subprocess import Popen, PIPE
 from mwzoo_celery.celery import celery
@@ -20,4 +26,25 @@ import os
 
 @celery.task
 def yara_a_file(filename):
+    """Scan the file with all of the rules in the yara/ subdirectory."""
     os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(filename, filename.replace('/','_')))
+
+@celery.task
+def parse_pe(file_path):
+    """Parse the PE sections of the file."""
+
+    import pefile
+    
+    # TODO is this PE format?
+    pe =  pefile.PE(file_path, fast_load=True)
+    info = {}
+
+    #logic for the pesections
+    info["sections"] = {}
+    for section in pe.sections:
+        info["sections"][section.Name] = {}
+        info["sections"][section.Name]["VirtualAddress"] = hex(section.VirtualAddress)
+        info["sections"][section.Name]["Misc_VirtualSize"] = hex(section.Misc_VirtualSize)
+        info["sections"][section.Name]["SizeOfRawData"] = section.SizeOfRawData
+
+    print info
