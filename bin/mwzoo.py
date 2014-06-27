@@ -180,6 +180,7 @@ class MalwareZoo(resource.Resource):
         return target_file
 
     def process_sample(self, analysis):
+        mwzoo_tasks.hash_contents(analysis)
         mwzoo_tasks.yara_a_file(analysis)
         mwzoo_tasks.parse_pe(analysis)
 

@@ -9,11 +9,15 @@ Quick Start
 
 Dependencies (required Ubuntu software packages)
  - python-twisted
- - python-pefile
+ - python-pip
+ - python-pefile (install from source in extra/)
+ - bitstring (sudo -E pip install bitstring)
  - python-pymongo
  - mongodb-org (see bin/ubuntu_install_mongodb.sh)
  - python-celery
  - rabbitmq-server
+ - yara
+ - ssdeep
 
 Architecture:
  - XMLRPC interface for interacting with the zoo (requires binary content to be base64 encoded)
