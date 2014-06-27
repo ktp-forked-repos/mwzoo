@@ -6,5 +6,5 @@ starting mwzoo web services
 
 (then in another terminal)
 
-jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && bin/submit.py
+jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && bin/submit.py -f notepad.exe
 malware/a25/a25534d24de08c18a9a0b6ba0a2ac41575260524

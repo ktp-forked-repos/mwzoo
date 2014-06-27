@@ -10,6 +10,7 @@ import os, os.path
 import ConfigParser
 import hashlib
 import time
+import base64
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -51,6 +52,8 @@ class MalwareZoo(resource.Resource):
     def save_sample(self, file_name, file_content):
         """Saves a sample to the database, which begins processing on it.  
             Returns the path to the file if the save was successfull or if the file was already uploaded."""
+
+        print 'saving {0}'.format(file_name)
         
         # calculate the sha1 hash of the file
         m = hashlib.sha1()
@@ -63,94 +66,100 @@ class MalwareZoo(resource.Resource):
         target_file = os.path.join(sub_dir, sha1_hash)
 
         # have we already loaded this file?
-        if os.path.exists(target_file):
-            return target_file
+        if not os.path.exists(target_file):
+            # save the file to disk
+            with open(target_file, 'wb') as fp:
+                fp.write(file_content)
 
-        # save the file to disk
-        with open(target_file, 'wb') as fp:
-            fp.write(file_content)
-    
-        # save metadata to the database
+        # do we already have an analysis of this file?
         client = MongoClient()
         db = client['mwzoo']
         collection = db['analysis']
-        collection.insert({
-            'storage': target_file,
-            'name': [ target_file ] ,
-            'hashes': {
-                'md5': None,
-                'sha1': sha1_hash,
-                'sha256': None,
-                'pehash': None,
-                'imphash': None,
-                'ssdeep': None
-            },
-            'strings': {
-                'unicode': [],
-                'ascii': []
-            },
-            'imports': [ 
-                #{
-                    #'module': string,
-                    #function_name: string,
-                    #ord: int
-                #} 
-            ],
-            'sections': [ 
-                #{
-                    #name: string
-                    #md5 : string
-                    #rva: int
-                    #raw_sz: int
-                    #virtual_sz: int
-                #} ]
-            ],
-            'exports': [ 
-                #{
-                    #function_name: string
-                    #ord: int
-                #} ]
-            ],
-            'packers': [],
-            'street_names': [
-                #{
-                    #vendor: {}
-                    #streetname: {}
-                #}]
-            ],
-            'pe_header': {
-                'machine_build': None,
-                'number_of_sections': None,
-                'time_date_stamp': None,
-                'pointer_to_symbol_table': None,
-                'number_of_symbols': None,
-                'size_of_optional_header': None,
-                'characteristics': None,
-                'optional_header': {
-                    'magic': None,
-                    'linker_version': None,
-                    'size_of_code': None,
+
+        analysis = collection.find_one({'hashes.sha1': sha1_hash})
+
+        if analysis is None:
+            # create a new analysis for this sample
+            collection.insert({
+                'storage': target_file,
+                'name': [ target_file ] ,
+                'hashes': {
+                    'md5': None,
+                    'sha1': sha1_hash,
+                    'sha256': None,
+                    'pehash': None,
+                    'imphash': None,
+                    'ssdeep': None
                 },
-            },
-            'tags': [],
-            'behavior': [
-                #{
-                    #sandbox_name: {}    // ex cuckoo
-                    #sandbox_version: {} // ex 1.0.0
-                    #image_name: {}      // ex windows 7 32
-                    #c2: []          
-                    #mutexes: []
-                    #files_created: []
-                    #files_modified: []
-                    #files_deleted: []
-                    #registry_created: []
-                    #registry_modified: []
-                    #registry_deleted: []
-                #]}
-            ],
-            'exifdata': {},
-            'source': []      # where did this file come from?
-        })
+                'strings': {
+                    'unicode': [],
+                    'ascii': []
+                },
+                'imports': [ 
+                    #{
+                        #'module': string,
+                        #function_name: string,
+                        #ord: int
+                    #} 
+                ],
+                'sections': [ 
+                    #{
+                        #name: string
+                        #md5 : string
+                        #rva: int
+                        #raw_sz: int
+                        #virtual_sz: int
+                    #} ]
+                ],
+                'exports': [ 
+                    #{
+                        #function_name: string
+                        #ord: int
+                    #} ]
+                ],
+                'packers': [],
+                'street_names': [
+                    #{
+                        #vendor: {}
+                        #streetname: {}
+                    #}]
+                ],
+                'pe_header': {
+                    'machine_build': None,
+                    'number_of_sections': None,
+                    'time_date_stamp': None,
+                    'pointer_to_symbol_table': None,
+                    'number_of_symbols': None,
+                    'size_of_optional_header': None,
+                    'characteristics': None,
+                    'optional_header': {
+                        'magic': None,
+                        'linker_version': None,
+                        'size_of_code': None,
+                    },
+                },
+                'tags': [],
+                'behavior': [
+                    #{
+                        #sandbox_name: {}    // ex cuckoo
+                        #sandbox_version: {} // ex 1.0.0
+                        #image_name: {}      // ex windows 7 32
+                        #c2: []          
+                        #mutexes: []
+                        #files_created: []
+                        #files_modified: []
+                        #files_deleted: []
+                        #registry_created: []
+                        #registry_modified: []
+                        #registry_deleted: []
+                    #]}
+                ],
+                'exifdata': {},
+                'source': []      # where did this file come from?
+            })
+
+            # then get it back out
+            analysis = collection.find_one({'hashes.sha1': sha1_hash})
 
         #
         # (eventually use celery to distribute the tasks)
@@ -158,20 +167,22 @@ class MalwareZoo(resource.Resource):
 
         # TODO limit the total number of concurrent processes
         # tried to use a Pool but couldn't get it to work
-        p = Process(target=self.process_sample, args=(sha1_hash, target_file))
-        p.start()
+        #p = Process(target=self.process_sample, args=(analysis,))
+        #p.start()
+
+        self.process_sample(analysis)
 
         return target_file
 
-    def process_sample(self, sha1_hash, target_file):
-        mwzoo_tasks.yara_a_file(target_file)
-        mwzoo_tasks.parse_pe(target_file)
+    def process_sample(self, analysis):
+        mwzoo_tasks.yara_a_file(analysis)
+        mwzoo_tasks.parse_pe(analysis)
         
 class FileUploadHandler(xmlrpc.XMLRPC):
 
     def xmlrpc_upload(self, file_name, file_content):
         """Upload the given contents and record the included metadata."""
-        return malware_zoo.save_sample(file_name, file_content)
+        return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
     
     #def render_GET(self, request):
         #request.setHeader("content-type", "text/plain")

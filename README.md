@@ -16,7 +16,7 @@ Dependencies (required Ubuntu software packages)
  - rabbitmq-server
 
 Architecture:
- - XMLRPC interface for interacting with the zoo
+ - XMLRPC interface for interacting with the zoo (requires binary content to be base64 encoded)
  - python twisted webserver accepts requests for storage and retrieval
  - files are stored on disk as-in
  - analysis tasks are kicked off as celery tasks

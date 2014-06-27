@@ -25,18 +25,18 @@ import os
 #
 
 @celery.task
-def yara_a_file(filename):
+def yara_a_file(analysis):
     """Scan the file with all of the rules in the yara/ subdirectory."""
-    os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(filename, filename.replace('/','_')))
+    os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(analysis['storage'], analysis['storage'].replace('/','_')))
 
 @celery.task
-def parse_pe(file_path):
+def parse_pe(analysis):
     """Parse the PE sections of the file."""
 
     import pefile
     
     # TODO is this PE format?
-    pe =  pefile.PE(file_path, fast_load=True)
+    pe =  pefile.PE(analysis['storage'], fast_load=True)
     info = {}
 
     #logic for the pesections
