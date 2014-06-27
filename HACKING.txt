@@ -1,10 +1,30 @@
-How to do something:
+HOW TO GUIDE
 
-(in one terminal)
+HOW TO START MWZOO
+==============================================================================
 jdavison@vm:~/projects/mwzoo$ bin/start-mwzoo.sh
 starting mwzoo web services
 
-(then in another terminal)
-
+HOW TO SUBMIT A NEW SAMPLE
+==============================================================================
 jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && bin/submit.py -f notepad.exe
 malware/a25/a25534d24de08c18a9a0b6ba0a2ac41575260524
+
+
+HOW TO QUERY THE ZOO
+==============================================================================
+# query for exact md5
+jdavison@vm:~/projects/mwzoo$ bin/mwzoo_query.py --md5 d378bffb70923139d6a4f546864aa61
+notepad.exe
+
+# query for part of an md5
+jdavison@vm:~/projects/mwzoo$ bin/mwzoo_query.py --md5 d378bf
+notepad.exe
+
+# query for all .exe files
+jdavison@vm:~/projects/mwzoo$ bin/mwzoo_query.py --file-name '\.exe$'
+notepad.exe
+
+# store all the files that match your query in a directory
+jdavison@vm:~/projects/mwzoo$ bin/mwzoo_query.py --md5 d3 -d temp
+temp/notepad.exe
