@@ -37,14 +37,18 @@ def parse_pe(analysis):
     
     # TODO is this PE format?
     pe =  pefile.PE(analysis['storage'], fast_load=True)
-    info = {}
 
-    #logic for the pesections
-    info["sections"] = {}
+    # logic for the pesections
+    sections = []
     for section in pe.sections:
-        info["sections"][section.Name] = {}
-        info["sections"][section.Name]["VirtualAddress"] = hex(section.VirtualAddress)
-        info["sections"][section.Name]["Misc_VirtualSize"] = hex(section.Misc_VirtualSize)
-        info["sections"][section.Name]["SizeOfRawData"] = section.SizeOfRawData
+        s = {}
+        s['name'] = '' # ??
+        s['virtual_address'] = hex(section.VirtualAddress)
+        s['virtual_size'] = hex(section.Misc_VirtualSize)
+        s['raw_size'] = section.SizeOfRawData
+        #analysis["sections"][section.Name]["VirtualAddress"] = hex(section.VirtualAddress)
+        #analysis["sections"][section.Name]["Misc_VirtualSize"] = hex(section.Misc_VirtualSize)
+        #analysis["sections"][section.Name]["SizeOfRawData"] = section.SizeOfRawData
+        sections.append(s)
 
-    print info
+        analysis['sections'] = sections

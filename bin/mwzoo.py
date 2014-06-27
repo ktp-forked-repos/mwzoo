@@ -78,11 +78,16 @@ class MalwareZoo(resource.Resource):
 
         analysis = collection.find_one({'hashes.sha1': sha1_hash})
 
-        if analysis is None:
+        # have we seen this sample before?
+        if analysis is not None:
+            # have we seen this sample with this file name before?
+            if file_name not in analysis['name']:
+                analysis['name'].append(file_name)
+        else:
             # create a new analysis for this sample
             collection.insert({
                 'storage': target_file,
-                'name': [ target_file ] ,
+                'name': [ file_name ] ,
                 'hashes': {
                     'md5': None,
                     'sha1': sha1_hash,
@@ -177,6 +182,12 @@ class MalwareZoo(resource.Resource):
     def process_sample(self, analysis):
         mwzoo_tasks.yara_a_file(analysis)
         mwzoo_tasks.parse_pe(analysis)
+
+        # save the results to the database!
+        client = MongoClient()
+        db = client['mwzoo']
+        collection = db['analysis']
+        collection.save(analysis)
         
 class FileUploadHandler(xmlrpc.XMLRPC):
 
