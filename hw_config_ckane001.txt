@@ -1,0 +1,12 @@
+I was doing some research on the Internets and I figured it might be a good idea to start documenting
+potential server configurations + pricing we find on the Interwebz.
+
+The following system configurations I found on MicroCenter:
+
+CKANE-MC-20140627-001: ~$383
+- Gigabyte GA-78LMT-S2P Motherboard (incl. DVI, Network, etc...)
+- AMD FX 6300 Black-Edition 6-core CPU 3.5GHz
+- 16GB Crucial DDR3-1333 PC3-10600 Memory
+- Toshiba 1TB 7200rpm SATA (6 Gbps) HD
+- CoolerMaster mid-tower ATX case TC102
+- Diablotek EL PSEL500 500W Power Supply
