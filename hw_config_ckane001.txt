@@ -1,6 +1,8 @@
 I was doing some research on the Internets and I figured it might be a good idea to start documenting
 potential server configurations + pricing we find on the Interwebz.
 
+Think of this as a shopping list, of sorts.
+
 The following system configurations I found on MicroCenter:
 
 CKANE-MC-20140627-001: ~$383
