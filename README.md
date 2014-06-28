@@ -81,6 +81,7 @@ JSON sample metadata format:
     sections: [ {
         name: {} 
         md5 : {}
+        file_offset: {}
         rva: {}
         raw_sz: {}
         virtual_sz: {}
@@ -116,7 +117,7 @@ JSON sample metadata format:
         sandbox_name: {}    // ex cuckoo
         sandbox_version: {} // ex 1.0.0
         image_name: {}      // ex windows 7 32
-        c2: []          
+        c2: [{'address': 'blah.com', 'port': 8080}]          
         mutexes: []
         files_created: []
         files_modified: []
