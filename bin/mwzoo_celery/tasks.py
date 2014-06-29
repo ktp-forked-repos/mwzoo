@@ -187,8 +187,8 @@ def extract_strings(analysis):
     """Extract ASCII and "wide" (Unicode) strings."""
     p = Popen(['strings', analysis['storage']], stdout=PIPE)
     (stdoutdata, stderrdata) = p.communicate()
-    analysis['strings']['ascii'] = stdoutdata
+    analysis['strings']['ascii'] = stdoutdata.split('\n')
 
     p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
     (stdoutdata, stderrdata) = p.communicate()
-    analysis['strings']['unicode'] = stdoutdata
+    analysis['strings']['unicode'] = stdoutdata.split('\n')
