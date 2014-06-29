@@ -11,6 +11,7 @@ import ConfigParser
 import hashlib
 import time
 import base64
+import logging, logging.config
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -183,6 +184,7 @@ class MalwareZoo(resource.Resource):
         mwzoo_tasks.hash_contents(analysis)
         mwzoo_tasks.yara_a_file(analysis)
         mwzoo_tasks.parse_pe(analysis)
+        mwzoo_tasks.extract_strings(analysis)
 
         # save the results to the database!
         client = MongoClient()
@@ -219,11 +221,38 @@ if __name__ == '__main__':
         sys.stderr.write('missing configuration file {0}\n'.format(args.config_path))
         sys.exit(1)
 
+    log_config = {
+        "version": 1,
+        "formatters": {
+            "standard": {
+                "format": "[%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s] [%(levelname)s] - %(message)s" } },
+        "handlers": {
+            "console": {
+                "class": 'logging.StreamHandler',
+                "level": logging.DEBUG,
+                "formatter": "standard",
+                "stream": "ext://sys.stdout" },
+            #"file": {
+                #"class": 'logging.handlers.RotatingFileHandler',
+                #"level": logging.DEBUG,
+                #"formatter": "standard",
+                #"filename": 'noms.log',
+                #"maxBytes": 1024 * 1024 * 10,
+                #"backupCount": 10 } 
+        },
+        "root": {
+            "level": logging.DEBUG,
+            "handlers": [ 'console' ] }
+    }
+
+    logging.config.dictConfig(log_config)
+
     malware_zoo = MalwareZoo()
     malware_zoo.putChild("upload", FileUploadHandler())
     
     # load the malware zoo configuration
     malware_zoo.load_config(args.config_path)
     
+    logging.debug("starting malware zoo")
     reactor.listenTCP(8081, server.Site(malware_zoo))
     reactor.run()

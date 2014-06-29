@@ -10,6 +10,7 @@ from subprocess import Popen, PIPE
 from mwzoo_celery.celery import celery
 from celery import group, chord, chain
 import os
+import logging, logging.config
 
 #
 # Define each of your tasks here:
@@ -32,7 +33,6 @@ def yara_a_file(analysis):
 @celery.task
 def hash_contents(analysis):
 
-    import pefile
     import hashlib
 
     """Perform various hashing algorithms."""
@@ -59,8 +59,17 @@ def hash_contents(analysis):
 def parse_pe(analysis):
     """Parse the PE sections of the file."""
 
-    import pefile
-    import bitstring
+    try:
+        import pefile
+    except ImportError, e:
+        logging.error("missing pefile library")
+        return
+
+    try:
+        import bitstring
+    except ImportError, e:
+        logging.error("missing bitstring library")
+
     import string
     import bz2
     
@@ -173,3 +182,13 @@ def parse_pe(analysis):
 
     analysis['hashes']['imphash'] = exe.get_imphash()
 
+@celery.task
+def extract_strings(analysis):
+    """Extract ASCII and "wide" (Unicode) strings."""
+    p = Popen(['strings', analysis['storage']], stdout=PIPE)
+    (stdoutdata, stderrdata) = p.communicate()
+    analysis['strings']['ascii'] = stdoutdata
+
+    p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
+    (stdoutdata, stderrdata) = p.communicate()
+    analysis['strings']['unicode'] = stdoutdata
