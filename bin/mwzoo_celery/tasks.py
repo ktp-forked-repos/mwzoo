@@ -80,7 +80,7 @@ def parse_pe(analysis):
     sections = []
     for section in exe.sections:
         s = {}
-        s['name'] = '' # ??
+        s['name'] = section.Name
         s['virtual_address'] = hex(section.VirtualAddress)
         s['virtual_size'] = hex(section.Misc_VirtualSize)
         s['raw_size'] = section.SizeOfRawData
@@ -91,6 +91,15 @@ def parse_pe(analysis):
 
         analysis['sections'] = sections
 
+    # logic to calculate exports
+    imports = []
+    for entry in exe.DIRECTORY_ENTRY_IMPORT:
+        i = {}
+        i['name'] = entry.dll
+        for imp in entry.imports:
+            i['address'] = hex(imp.address)
+            i['import_name'] = imp.name 
+        imports.append(i)
     #
     # compute pehash
     #
