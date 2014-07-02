@@ -12,6 +12,7 @@ import hashlib
 import time
 import base64
 import logging, logging.config
+import traceback
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -183,7 +184,13 @@ class MalwareZoo(resource.Resource):
     def process_sample(self, analysis):
         mwzoo_tasks.hash_contents(analysis)
         mwzoo_tasks.yara_a_file(analysis)
-        mwzoo_tasks.parse_pe(analysis)
+
+        try:
+            mwzoo_tasks.parse_pe(analysis)
+        except Exception, e:
+            logging.error("unable to parse PE: {0}".format(str(e)))
+            traceback.print_exc()
+            
         mwzoo_tasks.extract_strings(analysis)
 
         # save the results to the database!
