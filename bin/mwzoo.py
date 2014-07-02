@@ -26,7 +26,7 @@ from pymongo import MongoClient
 from multiprocessing import Process
 
 # analysis tasks
-import mwzoo_celery.tasks as mwzoo_tasks
+import analysis.tasks as mwzoo_tasks
 
 # global malware zoo pointer
 malware_zoo = None
