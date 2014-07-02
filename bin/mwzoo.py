@@ -228,17 +228,17 @@ if __name__ == '__main__':
         sys.stderr.write('missing configuration file {0}\n'.format(args.config_path))
         sys.exit(1)
 
-    log_config = {
-        "version": 1,
-        "formatters": {
-            "standard": {
-                "format": "[%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s] [%(levelname)s] - %(message)s" } },
-        "handlers": {
-            "console": {
-                "class": 'logging.StreamHandler',
-                "level": logging.DEBUG,
-                "formatter": "standard",
-                "stream": "ext://sys.stdout" },
+    #log_config = {
+        #"version": 1,
+        #"formatters": {
+            #"standard": {
+                #"format": "[%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s] [%(levelname)s] - %(message)s" } },
+        #"handlers": {
+            #"console": {
+                #"class": 'logging.StreamHandler',
+                #"level": logging.DEBUG,
+                #"formatter": "standard",
+                #"stream": "ext://sys.stdout" },
             #"file": {
                 #"class": 'logging.handlers.RotatingFileHandler',
                 #"level": logging.DEBUG,
@@ -246,13 +246,14 @@ if __name__ == '__main__':
                 #"filename": 'noms.log',
                 #"maxBytes": 1024 * 1024 * 10,
                 #"backupCount": 10 } 
-        },
-        "root": {
-            "level": logging.DEBUG,
-            "handlers": [ 'console' ] }
-    }
+        #},
+        #"root": {
+            #"level": logging.DEBUG,
+            #"handlers": [ 'console' ] }
+    #}
 
-    logging.config.dictConfig(log_config)
+    #logging.config.dictConfig(log_config)
+    logging.config.fileConfig('etc/logging.conf')
 
     malware_zoo = MalwareZoo()
     malware_zoo.putChild("upload", FileUploadHandler())
