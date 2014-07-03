@@ -83,13 +83,13 @@ class MalwareZoo(resource.Resource):
         # have we seen this sample before?
         if analysis is not None:
             # have we seen this sample with this file name before?
-            if file_name not in analysis['name']:
-                analysis['name'].append(file_name)
+            if file_name not in analysis['names']:
+                analysis['names'].append(file_name)
         else:
             # create a new analysis for this sample
             collection.insert({
                 'storage': target_file,
-                'name': [ file_name ] ,
+                'names': [ file_name ] ,
                 'mime_types' : [ ], # file -i
                 'file_types' : [ ], # file
                 'hashes': {
