@@ -78,8 +78,9 @@ def _pe_process_sections(analysis):
     analysis['sections'] = sections
 
 def _pe_process_imports(analysis):
+    """logic to calculate exports"""
     exe =  pefile.PE(analysis['storage'], fast_load=True)
-    # logic to calculate exports
+    analysis['imports'] = []
     imports = []
     for entry in exe.DIRECTORY_ENTRY_IMPORT:
         i = {}
@@ -87,9 +88,7 @@ def _pe_process_imports(analysis):
         for imp in entry.imports:
             i['address'] = hex(imp.address)
             i['import_name'] = imp.name 
-        imports.append(i)
-
-    analysis['imports'] = sections
+        analysis['imports'].append(i)
 
 def _pe_process_pehash(analysis):
     exe =  pefile.PE(analysis['storage'], fast_load=True)
@@ -207,3 +206,17 @@ def extract_strings(analysis):
     p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
     (stdoutdata, stderrdata) = p.communicate()
     analysis['strings']['unicode'] = stdoutdata.split('\n')
+
+@celery.task
+def detect_file_type(analysis):
+    """Detect what kind of file this is."""
+    p = Popen(['file', analysis['storage']], stdout=PIPE)
+    (stdoutdata, stderrdata) = p.communicate()
+    # example file command output:
+    # putty.exe: PE32 executable (GUI) Intel 80386, for MS Windows
+    # so len(file_name) + 2 (: + space)
+    analysis['file_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+    # same thing but for the mime type
+    p = Popen(['file', '-i', analysis['storage']], stdout=PIPE)
+    (stdoutdata, stderrdata) = p.communicate()
+    analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())

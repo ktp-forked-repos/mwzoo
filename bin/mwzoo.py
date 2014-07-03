@@ -90,6 +90,8 @@ class MalwareZoo(resource.Resource):
             collection.insert({
                 'storage': target_file,
                 'name': [ file_name ] ,
+                'mime_types' : [ ], # file -i
+                'file_types' : [ ], # file
                 'hashes': {
                     'md5': None,
                     'sha1': sha1_hash,
@@ -184,6 +186,7 @@ class MalwareZoo(resource.Resource):
     def process_sample(self, analysis):
         mwzoo_tasks.hash_contents(analysis)
         mwzoo_tasks.yara_a_file(analysis)
+        mwzoo_tasks.detect_file_type(analysis)
 
         try:
             mwzoo_tasks.parse_pe(analysis)
