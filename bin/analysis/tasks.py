@@ -78,7 +78,7 @@ def _pe_process_sections(analysis):
     analysis['sections'] = sections
 
 def _pe_process_imports(analysis):
-    """logic to calculate exports"""
+    """logic to calculate imports"""
     exe =  pefile.PE(analysis['storage'], fast_load=True)
     analysis['imports'] = []
     imports = []
@@ -89,6 +89,18 @@ def _pe_process_imports(analysis):
             i['address'] = hex(imp.address)
             i['import_name'] = imp.name 
         analysis['imports'].append(i)
+
+def _pe_process_exports(analysis):
+    """logic to calculate exports"""
+    exe =  pefile.PE(analysis['storage'], fast_load=True)
+    analysis['exports'] = []
+    imports = []
+    for entry in exe.DIRECTORY_ENTRY_EXPORT.symbols:
+        i = {}
+        i['name'] = entry.name
+        i['address'] = hex(exe.OPTIONAL_HEADER.ImageBase + entry.address)
+        i['ordinal'] = entry.ordinal
+        analysis['exports'].append(i)
 
 def _pe_process_pehash(analysis):
     exe =  pefile.PE(analysis['storage'], fast_load=True)
@@ -178,6 +190,7 @@ def _pe_process_pehash(analysis):
 def _pe_process_imphash(analysis):
     exe =  pefile.PE(analysis['storage'], fast_load=True)
     analysis['hashes']['imphash'] = exe.get_imphash()
+
 
 @celery.task
 def parse_pe(analysis):
