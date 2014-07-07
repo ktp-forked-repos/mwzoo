@@ -20,6 +20,10 @@ parser.add_argument(
     help="Query by md5 hash (regex pattern).")
 
 parser.add_argument(
+    '-1', '--sha1', action='store', dest='sha1', required=False, default=None,
+    help="Query by sha1 hash (regex pattern).")
+
+parser.add_argument(
     '-n', '--file-name', action='store', dest='file_name', required=False, default=None,
     help="Query by file name (regex pattern).")
 
@@ -33,13 +37,15 @@ collection = db['analysis']
 query = {}
 if args.md5 is not None:
     query['hashes.md5'] = { '$regex': args.md5 }
+if args.sha1 is not None:
+    query['hashes.sha1'] = { '$regex': args.sha1 }
 if args.file_name is not None:
-    query['name'] = { '$regex': args.file_name }
+    query['names'] = { '$regex': args.file_name }
 
 for sample in collection.find(query):
     if args.directory is not None:
-        dest_file = os.path.join(args.directory, sample['name'][0])
+        dest_file = os.path.join(args.directory, sample['names'][0])
         shutil.copyfile(sample['storage'], dest_file)
         print dest_file
     else:
-        print ', '.join(sample['name'])
+        print ', '.join(sample['names'])
