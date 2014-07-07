@@ -88,7 +88,7 @@ def _pe_process_imports(analysis):
         for imp in entry.imports:
             i['address'] = hex(imp.address)
             i['import_name'] = imp.name 
-        analysis['imports'].append(i)
+            analysis['imports'].append(i)
 
 def _pe_process_exports(analysis):
     """logic to calculate exports"""
