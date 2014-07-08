@@ -190,10 +190,11 @@ class MalwareZoo(resource.Resource):
         return target_file
 
     def process_sample(self, analysis):
-        mwzoo_tasks.hash_contents(analysis)
-
-        task = mwzoo_tasks.YaraAnalysis()
-        task.analyze(analysis)
+        for task in [ 
+            mwzoo_tasks.HashAnalysis(),
+            mwzoo_tasks.YaraAnalysis() 
+        ]:
+            task.analyze(analysis)
 
         #mwzoo_tasks.yara_a_file(analysis)
         mwzoo_tasks.detect_file_type(analysis)

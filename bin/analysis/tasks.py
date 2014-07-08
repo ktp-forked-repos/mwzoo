@@ -107,27 +107,26 @@ class YaraAnalysis(AnalysisTask):
     #args = []
     #os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(analysis['storage'], analysis['storage'].replace('/','_')))
 
-@celery.task
-def hash_contents(analysis):
-
+class HashAnalysis(AnalysisTask):
     """Perform various hashing algorithms."""
-    with open(analysis['storage'], 'rb') as fp:
-        content = fp.read()
+    def analyze(self, analysis):
+        with open(analysis['storage'], 'rb') as fp:
+            content = fp.read()
 
-    # md5
-    m = hashlib.md5()
-    m.update(content)
-    analysis['hashes']['md5'] = m.hexdigest()
+        # md5
+        m = hashlib.md5()
+        m.update(content)
+        analysis['hashes']['md5'] = m.hexdigest()
 
-    # sha256
-    m = hashlib.sha256()
-    m.update(content)
-    analysis['hashes']['sha256'] = m.hexdigest()
+        # sha256
+        m = hashlib.sha256()
+        m.update(content)
+        analysis['hashes']['sha256'] = m.hexdigest()
 
-    # ssdeep
-    p = Popen(['ssdeep', analysis['storage']], stdout=PIPE)
-    p.wait()
-    analysis['hashes']['ssdeep'] = p.stdout.read()
+        # ssdeep
+        p = Popen(['ssdeep', analysis['storage']], stdout=PIPE)
+        (stdout, stderr) = p.communicate()
+        analysis['hashes']['ssdeep'] = stdout
 
 def _pe_process_sections(analysis):
 
