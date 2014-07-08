@@ -32,10 +32,11 @@ import analysis.tasks as mwzoo_tasks
 global_config = None
 
 class Sample(object):
-    def __init__(self, file_name, file_content, tags):
+    def __init__(self, file_name, file_content, tags, sources):
         self.file_name = file_name
         self.file_content = file_content
         self.tags = tags
+        self.sources = sources
         self.storage_container_dir = None
 
     def save(self):
@@ -162,7 +163,7 @@ class Sample(object):
                     'stderr_path': None     # yara stderr file path
                 },
                 'exifdata': {},
-                'source': [],      # where did this file come from?
+                'sources': self.sources,    # where did this file come from?
                 'zlib_blocks': [
                     #{
                         #offset: int            // offset of the location in the file
@@ -227,9 +228,9 @@ class MalwareZoo(resource.Resource):
         resource.Resource.__init__(self)
 
 class FileUploadHandler(xmlrpc.XMLRPC):
-    def xmlrpc_upload(self, file_name, file_content, tags):
+    def xmlrpc_upload(self, file_name, file_content, tags, sources):
         """Upload the given contents and record the included metadata."""
-        return Sample(file_name, base64.b64decode(file_content), tags).save()
+        return Sample(file_name, base64.b64decode(file_content), tags, sources).save()
         #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
 if __name__ == '__main__':
