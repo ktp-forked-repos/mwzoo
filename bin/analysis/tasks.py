@@ -19,6 +19,7 @@ import bitstring
 import string
 import bz2
 import hashlib
+import zlib
 
 #
 # Define each of your tasks here:
@@ -233,3 +234,66 @@ def detect_file_type(analysis):
     p = Popen(['file', '-i', analysis['storage']], stdout=PIPE)
     (stdoutdata, stderrdata) = p.communicate()
     analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+
+# TODO yuck these need to be classes that implement interfaces
+def brute_force_zlib(analysis):
+    """Perform a brute force zlib decompression attempt against every byte in the file."""
+    z = None
+    decompressed_chunks = []
+    data_buffer = []
+    current_offset = 0
+    offset = None
+
+    with open(analysis['storage'], 'rb') as fp:
+        while True:
+            byte = fp.read(1)
+            current_offset += 1
+            if byte == '':
+                break
+            if z is not None:
+                try:
+                    result = z.decompress(byte)
+                    if result:
+                        data_buffer.extend(result)
+                    # is decompression finished?
+                    if z.unused_data != '':
+                        logging.debug("unused data detected")
+                        if len(data_buffer) > 0:
+                            decompressed_chunks.append({
+                                'offset' : offset,
+                                'data' : data_buffer})
+                        data_buffer = []
+                        offset = None
+                        z = None
+                    else:
+                        continue
+                except zlib.error:
+                    if len(data_buffer) > 0:
+                        decompressed_chunks.append({
+                            'offset' : offset,
+                            'data' : data_buffer})
+                    data_buffer = []
+                    offset = None
+                    z = None
+
+            # zlib compresses data starts with an 'x'
+            if z is None and byte == 'x':
+                z = zlib.decompressobj()
+                z.decompress(byte)
+                offset = current_offset - 1
+
+        # remaining data_buffer
+        if len(data_buffer) > 0:
+            decompressed_chunks.append({
+                'offset' : offset,
+                'data' : data_buffer})
+        data_buffer = []
+        offset = None
+        z = None
+
+    logging.debug("found {0} compressed chunks".format(len(decompressed_chunks)))
+    for c in decompressed_chunks:
+        logging.debug("offset {0} size {1}".format(c['offset'], len(c['data'])))
+
+    # XXX cannot store non UTF-8 strings in mongo??
+    # analysis['zlib_blocks'] = decompressed_chunks

@@ -195,6 +195,7 @@ class MalwareZoo(resource.Resource):
             traceback.print_exc()
             
         mwzoo_tasks.extract_strings(analysis)
+        mwzoo_tasks.brute_force_zlib(analysis)
 
         # save the results to the database!
         client = MongoClient()
