@@ -144,6 +144,17 @@ class FileTypeAnalysis(AnalysisTask):
         (stdoutdata, stderrdata) = p.communicate()
         analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
 
+class StringAnalysis(AnalysisTask):
+    def analyze(self, analysis):
+        """Extract ASCII and "wide" (Unicode) strings."""
+        p = Popen(['strings', analysis['storage']], stdout=PIPE)
+        (stdoutdata, stderrdata) = p.communicate()
+        analysis['strings']['ascii'] = stdoutdata.split('\n')
+
+        p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
+        (stdoutdata, stderrdata) = p.communicate()
+        analysis['strings']['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
+
 def _pe_process_sections(analysis):
 
     # TODO pass this as an argument
@@ -292,17 +303,6 @@ def parse_pe(analysis):
         except Exception, e:
             logging.error("{0} failed: {1}".format(analysis_method.__name__, str(e)))
             traceback.print_exc()
-
-@celery.task
-def extract_strings(analysis):
-    """Extract ASCII and "wide" (Unicode) strings."""
-    p = Popen(['strings', analysis['storage']], stdout=PIPE)
-    (stdoutdata, stderrdata) = p.communicate()
-    analysis['strings']['ascii'] = stdoutdata.split('\n')
-
-    p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
-    (stdoutdata, stderrdata) = p.communicate()
-    analysis['strings']['unicode'] = stdoutdata.split('\n')
 
 @celery.task
 def detect_file_type(analysis):
