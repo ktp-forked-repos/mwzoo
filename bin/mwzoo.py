@@ -28,40 +28,27 @@ from multiprocessing import Process
 # analysis tasks
 import analysis.tasks as mwzoo_tasks
 
-# global malware zoo pointer
-malware_zoo = None
+# global config
+global_config = None
 
-class MalwareZoo(resource.Resource):
+class Sample(object):
+    def __init__(self, file_name, file_content):
+        self.file_name = file_name
+        self.file_content = file_content
 
-    def __init__(self):
-        resource.Resource.__init__(self)
-
-    def load_config(self, config_path):
-        """Load configuration settings from config_path"""
-        self.config = ConfigParser.ConfigParser()
-        self.config.read(config_path)
-
-        # sanity check configuration settings
-        self.malware_storage_dir = self.config.get('storage', 'malware_storage_dir', None)
-        if self.malware_storage_dir is None:
-            sys.stderr.write('missing configuration option malware_storage_dir in section storage\n')
-            sys.exit(1)
-
-        if not os.path.exists(self.malware_storage_dir):
-            sys.stderr.write('malware storage directory {0} does not exist\n'.format(self.malware_storage_dir))
-            sys.exit(1)
-
-    def save_sample(self, file_name, file_content):
+    def save(self):
         """Saves a sample to the database, which begins processing on it.  
             Returns the path to the file if the save was successfull or if the file was already uploaded."""
 
-        print 'saving {0}'.format(file_name)
+        logging.info("adding sample {0}".format(self.file_name))
         
         # calculate the sha1 hash of the file
         m = hashlib.sha1()
-        m.update(file_content)
+        m.update(self.file_content)
         sha1_hash = m.hexdigest()
-        sub_dir = os.path.join(self.malware_storage_dir, sha1_hash[0:3])
+        logging.debug("sample {0} has sha1_hash {1}".format(self.file_name, sha1_hash))
+
+        sub_dir = os.path.join(global_config.get('storage', 'malware_storage_dir'), sha1_hash[0:3])
         if not os.path.exists(sub_dir):
             os.mkdir(sub_dir)
 
@@ -71,7 +58,9 @@ class MalwareZoo(resource.Resource):
         if not os.path.exists(target_file):
             # save the file to disk
             with open(target_file, 'wb') as fp:
-                fp.write(file_content)
+                fp.write(self.file_content)
+        else:
+            logging.debug("sample {0} already exists".format(sha1_hash))
 
         # do we already have an analysis of this file?
         client = MongoClient()
@@ -83,13 +72,14 @@ class MalwareZoo(resource.Resource):
         # have we seen this sample before?
         if analysis is not None:
             # have we seen this sample with this file name before?
-            if file_name not in analysis['names']:
-                analysis['names'].append(file_name)
+            if self.file_name not in analysis['names']:
+                logging.debug("appending file name {0} to sample {1}".format(self.file_name, sha1_hash))
+                analysis['names'].append(self.file_name)
         else:
             # create a new analysis for this sample
             collection.insert({
                 'storage': target_file,
-                'names': [ file_name ] ,
+                'names': [ self.file_name ] ,
                 'mime_types' : [ ], # file -i
                 'file_types' : [ ], # file
                 'hashes': {
@@ -212,24 +202,16 @@ class MalwareZoo(resource.Resource):
         db = client['mwzoo']
         collection = db['analysis']
         collection.save(analysis)
-        
-class FileUploadHandler(xmlrpc.XMLRPC):
 
+class MalwareZoo(resource.Resource):
+    def __init__(self):
+        resource.Resource.__init__(self)
+
+class FileUploadHandler(xmlrpc.XMLRPC):
     def xmlrpc_upload(self, file_name, file_content):
         """Upload the given contents and record the included metadata."""
-        return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
-    
-    #def render_GET(self, request):
-        #request.setHeader("content-type", "text/plain")
-        #return "sup bro"
-
-    #def render_POST(self, request):
-        #if 'file' not in request.args:
-            #request.setResponseCode(500)
-            #return 'missing file argument'
-
-        #return 'sent {0} bytes'.format(len(request.args['file'][0]))
-
+        return Sample(file_name, base64.b64decode(file_content)).save()
+        #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MalwareZoo')
@@ -242,39 +224,14 @@ if __name__ == '__main__':
         sys.stderr.write('missing configuration file {0}\n'.format(args.config_path))
         sys.exit(1)
 
-    #log_config = {
-        #"version": 1,
-        #"formatters": {
-            #"standard": {
-                #"format": "[%(asctime)s] [%(filename)s:%(lineno)d] [%(threadName)s] [%(levelname)s] - %(message)s" } },
-        #"handlers": {
-            #"console": {
-                #"class": 'logging.StreamHandler',
-                #"level": logging.DEBUG,
-                #"formatter": "standard",
-                #"stream": "ext://sys.stdout" },
-            #"file": {
-                #"class": 'logging.handlers.RotatingFileHandler',
-                #"level": logging.DEBUG,
-                #"formatter": "standard",
-                #"filename": 'noms.log',
-                #"maxBytes": 1024 * 1024 * 10,
-                #"backupCount": 10 } 
-        #},
-        #"root": {
-            #"level": logging.DEBUG,
-            #"handlers": [ 'console' ] }
-    #}
-
     #logging.config.dictConfig(log_config)
     logging.config.fileConfig('etc/logging.conf')
 
+    global_config = ConfigParser.ConfigParser()
+    global_config.read(args.config_path)
+
+    logging.debug("starting malware zoo")
     malware_zoo = MalwareZoo()
     malware_zoo.putChild("upload", FileUploadHandler())
-    
-    # load the malware zoo configuration
-    malware_zoo.load_config(args.config_path)
-    
-    logging.debug("starting malware zoo")
     reactor.listenTCP(8081, server.Site(malware_zoo))
     reactor.run()
