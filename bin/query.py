@@ -28,12 +28,17 @@ parser.add_argument(
     help="Query by file name (regex pattern).")
 
 parser.add_argument(
-    '-m', '--mine-type', action='store', dest='mime_type', required=False, default=None,
+    '--mime-type', action='store', dest='mime_type', required=False, default=None,
     help="Query by mime type (regex pattern).")
 
 parser.add_argument(
-    '-t', '--file-type', action='store', dest='file_type', required=False, default=None,
+    '--file-type', action='store', dest='file_type', required=False, default=None,
     help="Query by file type (regex pattern).")
+
+parser.add_argument(
+    '-t', '--tag', action='store', dest='tag', required=False, default=None,
+    help="Query by tag (regex pattern).")
+
 
 args = parser.parse_args()
 
@@ -53,6 +58,8 @@ if args.mime_type is not None:
     query['mime_types'] = { '$regex': args.mime_type }
 if args.file_type is not None:
     query['file_types'] = { '$regex': args.file_type }
+if args.tag is not None:
+    query['tags'] = { '$regex': args.tag }
 
 for sample in collection.find(query):
     if args.directory is not None:

@@ -32,9 +32,10 @@ import analysis.tasks as mwzoo_tasks
 global_config = None
 
 class Sample(object):
-    def __init__(self, file_name, file_content):
+    def __init__(self, file_name, file_content, tags):
         self.file_name = file_name
         self.file_content = file_content
+        self.tags = tags
         self.storage_container_dir = None
 
     def save(self):
@@ -138,7 +139,7 @@ class Sample(object):
                         'size_of_code': None,
                     },
                 },
-                'tags': [],
+                'tags': self.tags,
                 'behavior': [
                     #{
                         #sandbox_name: {}    // ex cuckoo
@@ -226,9 +227,9 @@ class MalwareZoo(resource.Resource):
         resource.Resource.__init__(self)
 
 class FileUploadHandler(xmlrpc.XMLRPC):
-    def xmlrpc_upload(self, file_name, file_content):
+    def xmlrpc_upload(self, file_name, file_content, tags):
         """Upload the given contents and record the included metadata."""
-        return Sample(file_name, base64.b64decode(file_content)).save()
+        return Sample(file_name, base64.b64decode(file_content), tags).save()
         #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
 if __name__ == '__main__':
