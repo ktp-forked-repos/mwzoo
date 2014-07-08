@@ -99,12 +99,6 @@ class YaraAnalysis(ConfigurableAnalysisTask):
             #(stdout, stderr) = p.communicate()
             #analysis['yara']['commit'] = stdout
 
-#@celery.task
-#def yara_a_file(analysis):
-    #"""Scan the file with all of the rules in the yara/ subdirectory."""
-    #args = []
-    #os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(analysis['storage'], analysis['storage'].replace('/','_')))
-
 class HashAnalysis(AnalysisTask):
     """Perform various hashing algorithms."""
     def analyze(self, sample, analysis):
