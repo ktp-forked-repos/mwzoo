@@ -309,9 +309,10 @@ class ZlibAnalysis(AnalysisTask):
 
     def _reset_decompression(self):
         if len(self.data_buffer) > 0:
+            logging.debug("added {0} {1}".format(self.offset, len(self.data_buffer)))
             self.decompressed_chunks.append({
                 'offset' : self.offset,
-                'data' : self.data_buffer})
+                'content' : ''.join(self.data_buffer)})
 
         self.z = None # zlib decompression object
         self.data_buffer = []
@@ -350,8 +351,22 @@ class ZlibAnalysis(AnalysisTask):
             self._reset_decompression()
 
         logging.debug("found {0} compressed chunks".format(len(self.decompressed_chunks)))
-        for c in self.decompressed_chunks:
-            logging.debug("offset {0} size {1}".format(c['offset'], len(c['data'])))
 
-        # XXX cannot store non UTF-8 strings in mongo??
-        # analysis['zlib_blocks'] = decompressed_chunks
+        if len(self.decompressed_chunks) > 0:
+            # store the chunks into the file system
+            storage_dir = os.path.join(sample.storage_container_dir, 'zlib_blocks')
+            os.makedirs(storage_dir)
+
+            for c in self.decompressed_chunks:
+                content_path = os.path.join(storage_dir, "{0}.decompressed".format(c['offset']))
+                with open(content_path, 'wb') as zlib_out:
+                    logging.debug(
+"writing decompressed zlib block from offset {0} size {1} to {2}".format(
+    c['offset'], 
+    len(c['content']),
+    content_path))
+                    zlib_out.write(c['content'])
+                    del c['content']
+                    c['content_path'] = content_path
+
+            analysis['zlib_blocks'] = self.decompressed_chunks

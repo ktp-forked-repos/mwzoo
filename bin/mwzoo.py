@@ -35,6 +35,7 @@ class Sample(object):
     def __init__(self, file_name, file_content):
         self.file_name = file_name
         self.file_content = file_content
+        self.storage_container_dir = None
 
     def save(self):
         """Saves a sample to the database, which begins processing on it.  
@@ -160,7 +161,13 @@ class Sample(object):
                     'stderr_path': None     # yara stderr file path
                 },
                 'exifdata': {},
-                'source': []      # where did this file come from?
+                'source': [],      # where did this file come from?
+                'zlib_blocks': [
+                    #{
+                        #offset: int            // offset of the location in the file
+                        #content_path: string   // location of the data
+                    #}
+                ]
             })
 
             # then get it back out
