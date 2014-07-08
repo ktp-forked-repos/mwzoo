@@ -194,7 +194,8 @@ class MalwareZoo(resource.Resource):
             mwzoo_tasks.HashAnalysis(),
             mwzoo_tasks.YaraAnalysis(),
             mwzoo_tasks.FileTypeAnalysis(),
-            mwzoo_tasks.StringAnalysis()
+            mwzoo_tasks.StringAnalysis(),
+            mwzoo_tasks.PEAnalysis()
     
         ]:
             try:
@@ -205,12 +206,6 @@ class MalwareZoo(resource.Resource):
                     str(e)))
                 traceback.print_exc()
 
-        try:
-            mwzoo_tasks.parse_pe(analysis)
-        except Exception, e:
-            logging.error("unable to parse PE: {0}".format(str(e)))
-            traceback.print_exc()
-            
         mwzoo_tasks.brute_force_zlib(analysis)
 
         # save the results to the database!
