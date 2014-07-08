@@ -28,3 +28,16 @@ notepad.exe
 # store all the files that match your query in a directory
 jdavison@vm:~/projects/mwzoo$ bin/query.py --md5 d3 -d temp
 temp/notepad.exe
+
+PROGRAM EXECUTION FLOW
+#1) MalwareZoo starts as the XMLRPC server
+#2) file uploads are passwd to FileUploadHandler
+#3) a new Sample is created and .save() kicks off the process
+#4) Sample.process_sample calls the various analysis tasks
+#5) results are saved to file and mongodb
+
+HOW TO ADD A NEW ANALYSIS TASK (analysis/tasks.py)
+#1) derive a new class from AnalysisTask (or ConfigurableAnalysisTask)
+#2) if you want it to have configuration options, derive from ConfigurableAnalysisTask and create a etc/analysis/YOUR_CLASS_NAME.ini file
+#3) override the analyze method which receives a dict() called analysis, which is what goes into mongodb
+#4) do your analysis, store the results somewhere in the dict()
