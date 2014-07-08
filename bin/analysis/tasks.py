@@ -37,7 +37,7 @@ import zlib
 
 class AnalysisTask(object):
     """Base class for all analysis tasks."""
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         """Override this method to provide analysis.  The analysis storage container is passed as the only argument."""
         raise NotImplementedError()
 
@@ -64,13 +64,16 @@ class YaraAnalysis(ConfigurableAnalysisTask):
     def __init__(self):
         ConfigurableAnalysisTask.__init__(self)
 
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         args = [ self.config.get('global', 'yara_program') ]
         args.extend(self.config.get('global', 'yara_options').split())
         args.append(self.config.get('global', 'yara_rules'))
 
-        stdout_path = os.path.join(self.config.get('global', 'output_dir'), analysis['hashes']['sha1'] + '.stdout')
-        stderr_path = os.path.join(self.config.get('global', 'output_dir'), analysis['hashes']['sha1'] + '.stderr')
+        storage_dir = os.path.join(sample.storage_container_dir, self.config.get('global', 'output_dir'))
+        os.makedirs(storage_dir)
+
+        stdout_path = os.path.join(storage_dir, analysis['hashes']['sha1'] + '.stdout')
+        stderr_path = os.path.join(storage_dir, analysis['hashes']['sha1'] + '.stderr')
 
         with open(stdout_path, 'wb') as stdout:
             with open(stderr_path, 'wb') as stderr:
@@ -104,7 +107,7 @@ class YaraAnalysis(ConfigurableAnalysisTask):
 
 class HashAnalysis(AnalysisTask):
     """Perform various hashing algorithms."""
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         with open(analysis['storage'], 'rb') as fp:
             content = fp.read()
 
@@ -125,7 +128,7 @@ class HashAnalysis(AnalysisTask):
 
 class FileTypeAnalysis(AnalysisTask):
     """Use the file command to record what kind of file this might be."""
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         p = Popen(['file', analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
 
@@ -140,7 +143,7 @@ class FileTypeAnalysis(AnalysisTask):
         analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
 
 class StringAnalysis(AnalysisTask):
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         """Extract ASCII and "wide" (Unicode) strings."""
         p = Popen(['strings', analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
@@ -153,7 +156,7 @@ class StringAnalysis(AnalysisTask):
 class PEAnalysis(AnalysisTask):
     """Parse the PE sections of the file."""
 
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         try:
             self.exe =  pefile.PE(analysis['storage'], fast_load=True)
         except Exception, e:
@@ -320,7 +323,7 @@ class ZlibAnalysis(AnalysisTask):
         self.data_buffer = []
         self.offset = None
     
-    def analyze(self, analysis):
+    def analyze(self, sample, analysis):
         with open(analysis['storage'], 'rb') as fp:
             while True:
                 byte = fp.read(1)

@@ -175,6 +175,17 @@ class Sample(object):
         #p = Process(target=self.process_sample, args=(analysis,))
         #p.start()
 
+        # make a spot for extra file storage for this sample
+        self.storage_container_dir = target_file + "-data"
+        if not os.path.exists(self.storage_container_dir):
+            try:
+                os.makedirs(self.storage_container_dir)
+            except Exception, e:
+                logging.error(
+"unable to create storage container directory {0}: {1}".format(
+    self.storage_container_dir,
+    str(e)))
+
         self.process_sample(analysis)
 
         return target_file
@@ -190,7 +201,7 @@ class Sample(object):
     
         ]:
             try:
-                task.analyze(analysis)
+                task.analyze(self, analysis)
             except Exception, e:
                 logging.error("analysis task {0} failed: {1}".format(
                     analysis.__class__.__name__, 

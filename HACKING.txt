@@ -39,5 +39,5 @@ PROGRAM EXECUTION FLOW
 HOW TO ADD A NEW ANALYSIS TASK (analysis/tasks.py)
 #1) derive a new class from AnalysisTask (or ConfigurableAnalysisTask)
 #2) if you want it to have configuration options, derive from ConfigurableAnalysisTask and create a etc/analysis/YOUR_CLASS_NAME.ini file
-#3) override the analyze method which receives a dict() called analysis, which is what goes into mongodb
+#3) override the analyze method which receives a reference to the Sample objectk, and a dict() called analysis, which is what goes into mongodb
 #4) do your analysis, store the results somewhere in the dict()
