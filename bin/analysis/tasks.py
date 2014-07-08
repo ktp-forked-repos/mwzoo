@@ -128,6 +128,22 @@ class HashAnalysis(AnalysisTask):
         (stdout, stderr) = p.communicate()
         analysis['hashes']['ssdeep'] = stdout
 
+class FileTypeAnalysis(AnalysisTask):
+    """Use the file command to record what kind of file this might be."""
+    def analyze(self, analysis):
+        p = Popen(['file', analysis['storage']], stdout=PIPE)
+        (stdoutdata, stderrdata) = p.communicate()
+
+        # example file command output:
+        # putty.exe: PE32 executable (GUI) Intel 80386, for MS Windows
+        # so len(file_name) + 2 (: + space)
+        analysis['file_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+
+        # same thing but for the mime type
+        p = Popen(['file', '-i', analysis['storage']], stdout=PIPE)
+        (stdoutdata, stderrdata) = p.communicate()
+        analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+
 def _pe_process_sections(analysis):
 
     # TODO pass this as an argument

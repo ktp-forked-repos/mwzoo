@@ -192,7 +192,9 @@ class MalwareZoo(resource.Resource):
     def process_sample(self, analysis):
         for task in [ 
             mwzoo_tasks.HashAnalysis(),
-            mwzoo_tasks.YaraAnalysis() 
+            mwzoo_tasks.YaraAnalysis(),
+            mwzoo_tasks.FileTypeAnalysis()
+    
         ]:
             task.analyze(analysis)
 
