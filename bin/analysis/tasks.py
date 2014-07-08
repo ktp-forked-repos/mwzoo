@@ -35,13 +35,19 @@ import zlib
 #    return your_results # will not wait for subtask to finish
 #
 
+class AnalysisTask(object):
+    """Base class for all analysis tasks."""
+    def analyze(self, analysis):
+        """Override this method to provide analysis.  The analysis storage container is passed as the only argument."""
+        raise NotImplementedError()
+
 class ConfigurationRequiredError(Exception):
     pass
 
-class AnalysisTask(object):
-    """Base class for all analysis tasks."""
+class ConfigurableAnalysisTask(AnalysisTask):
     def __init__(self):
-        self.config = None
+        AnalysisTask.__init__(self)
+        self.load_configuration()
 
     def load_configuration(self):
         """Loads the configuration file for the current analysis object from
@@ -49,27 +55,16 @@ $MWZOO_HOME/etc/analysis/$CLASS_NAME.ini"""
 
         config_path = os.path.join(os.environ['MWZOO_HOME'], 'etc', 'analysis', self.__class__.__name__ + '.ini')
         if not os.path.exists(config_path):
-            logging.error("configuration file {0} does not exist".format(config_path))
-            return
+            raise ConfigurationRequiredError()
 
         self.config = ConfigParser.ConfigParser()
         self.config.read(config_path)
 
-    def analyze(self, analysis):
-        """Override this method to provide analysis.  The analysis storage container is passed as the only argument."""
-        raise NotImplementedError()
-
-class YaraAnalysis(AnalysisTask):
+class YaraAnalysis(ConfigurableAnalysisTask):
     def __init__(self):
-        AnalysisTask.__init__(self)
+        ConfigurableAnalysisTask.__init__(self)
 
     def analyze(self, analysis):
-        if self.config is None:
-            self.load_configuration()
-
-        if self.config is None:
-            raise ConfigurationRequiredError()
-
         args = [ self.config.get('global', 'yara_program') ]
         args.extend(self.config.get('global', 'yara_options').split())
         args.append(self.config.get('global', 'yara_rules'))
