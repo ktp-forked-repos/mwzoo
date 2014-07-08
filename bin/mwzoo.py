@@ -163,6 +163,12 @@ class MalwareZoo(resource.Resource):
                         #registry_deleted: []
                     #]}
                 ],
+                'yara': {
+                    'repository': None,     # git remote -v
+                    'commit': None,         # git log -n 1 --pretty=oneline
+                    'stdout_path': None,    # yara stdout file path
+                    'stderr_path': None     # yara stderr file path
+                },
                 'exifdata': {},
                 'source': []      # where did this file come from?
             })
@@ -185,7 +191,11 @@ class MalwareZoo(resource.Resource):
 
     def process_sample(self, analysis):
         mwzoo_tasks.hash_contents(analysis)
-        mwzoo_tasks.yara_a_file(analysis)
+
+        task = mwzoo_tasks.YaraAnalysis()
+        task.analyze(analysis)
+
+        #mwzoo_tasks.yara_a_file(analysis)
         mwzoo_tasks.detect_file_type(analysis)
 
         try:

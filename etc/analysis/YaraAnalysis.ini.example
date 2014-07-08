@@ -1,0 +1,9 @@
+[global]
+; path to the binary to use as the yara program
+yara_program = yara
+; arguments to pass to yara as the rules
+yara_rules = yara/*.yar
+; arguments to pass to yara
+yara_options = -g -m -s
+; directory to place the results
+output_dir = yara_results

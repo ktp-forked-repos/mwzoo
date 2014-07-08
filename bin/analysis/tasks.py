@@ -9,9 +9,10 @@ from __future__ import absolute_import
 from subprocess import Popen, PIPE
 from analysis.celery import celery
 from celery import group, chord, chain
-import os
+import os, os.path
 import logging, logging.config
 import traceback
+import ConfigParser
 
 # PE parsing stuff
 import pefile
@@ -34,10 +35,77 @@ import zlib
 #    return your_results # will not wait for subtask to finish
 #
 
-@celery.task
-def yara_a_file(analysis):
-    """Scan the file with all of the rules in the yara/ subdirectory."""
-    os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(analysis['storage'], analysis['storage'].replace('/','_')))
+class ConfigurationRequiredError(Exception):
+    pass
+
+class AnalysisTask(object):
+    """Base class for all analysis tasks."""
+    def __init__(self):
+        self.config = None
+
+    def load_configuration(self):
+        """Loads the configuration file for the current analysis object from
+$MWZOO_HOME/etc/analysis/$CLASS_NAME.ini"""
+
+        config_path = os.path.join(os.environ['MWZOO_HOME'], 'etc', 'analysis', self.__class__.__name__ + '.ini')
+        if not os.path.exists(config_path):
+            logging.error("configuration file {0} does not exist".format(config_path))
+            return
+
+        self.config = ConfigParser.ConfigParser()
+        self.config.read(config_path)
+
+    def analyze(self, analysis):
+        """Override this method to provide analysis.  The analysis storage container is passed as the only argument."""
+        raise NotImplementedError()
+
+class YaraAnalysis(AnalysisTask):
+    def __init__(self):
+        AnalysisTask.__init__(self)
+
+    def analyze(self, analysis):
+        if self.config is None:
+            self.load_configuration()
+
+        if self.config is None:
+            raise ConfigurationRequiredError()
+
+        args = [ self.config.get('global', 'yara_program') ]
+        args.extend(self.config.get('global', 'yara_options').split())
+        args.append(self.config.get('global', 'yara_rules'))
+
+        stdout_path = os.path.join(self.config.get('global', 'output_dir'), analysis['hashes']['sha1'] + '.stdout')
+        stderr_path = os.path.join(self.config.get('global', 'output_dir'), analysis['hashes']['sha1'] + '.stderr')
+
+        with open(stdout_path, 'wb') as stdout:
+            with open(stderr_path, 'wb') as stderr:
+                logging.debug("executing {0}".format(' '.join(args)))
+                p = Popen(args, stdout=stdout, stderr=stderr)
+                p.wait()
+                logging.debug("finished executing {0}".format(' '.join(args)))
+
+        analysis['yara']['stdout_path'] = stdout_path
+        analysis['yara']['stderr_path'] = stderr_path
+
+        # XXX people could be collecting rules from various places, not sure it makes sense
+        # but it would be nice to find a way to know what version of the rules was used
+        # is the yara directory a git repo?
+        #if os.path.exists(os.path.join(self.config.get('global', 'yara_rules'), '.git')):
+            ## record the remotes so we know where it came from
+            #p = Popen(['git', '--git-dir', self.config.get('global', 'yara_rules'), 'remote', '-v'], stdout=PIPE)
+            #(stdout, stderr) = p.communicate()
+            #analysis['yara']['repository'] = stdout
+
+            ## record the current commit so we know what version of the rules was executed
+            #p = Popen(['git', '--git-dir', self.config.get('global', 'yara_rules'), 'log', '-n', '1', '--pretty=oneline'], stdout=PIPE)
+            #(stdout, stderr) = p.communicate()
+            #analysis['yara']['commit'] = stdout
+
+#@celery.task
+#def yara_a_file(analysis):
+    #"""Scan the file with all of the rules in the yara/ subdirectory."""
+    #args = []
+    #os.system("yara -g -m -s yara/*.yar '{0}' > scans/'{1}'.scan".format(analysis['storage'], analysis['storage'].replace('/','_')))
 
 @celery.task
 def hash_contents(analysis):
