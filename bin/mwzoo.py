@@ -195,7 +195,8 @@ class MalwareZoo(resource.Resource):
             mwzoo_tasks.YaraAnalysis(),
             mwzoo_tasks.FileTypeAnalysis(),
             mwzoo_tasks.StringAnalysis(),
-            mwzoo_tasks.PEAnalysis()
+            mwzoo_tasks.PEAnalysis(),
+            mwzoo_tasks.ZlibAnalysis()
     
         ]:
             try:
@@ -205,8 +206,6 @@ class MalwareZoo(resource.Resource):
                     analysis.__class__.__name__, 
                     str(e)))
                 traceback.print_exc()
-
-        mwzoo_tasks.brute_force_zlib(analysis)
 
         # save the results to the database!
         client = MongoClient()

@@ -303,65 +303,63 @@ class PEAnalysis(AnalysisTask):
     def _pe_process_imphash(self, analysis):
         analysis['hashes']['imphash'] = self.exe.get_imphash()
 
-# TODO yuck these need to be classes that implement interfaces
-def brute_force_zlib(analysis):
+class ZlibAnalysis(AnalysisTask):
     """Perform a brute force zlib decompression attempt against every byte in the file."""
-    z = None
-    decompressed_chunks = []
-    data_buffer = []
-    current_offset = 0
-    offset = None
 
-    with open(analysis['storage'], 'rb') as fp:
-        while True:
-            byte = fp.read(1)
-            current_offset += 1
-            if byte == '':
-                break
-            if z is not None:
-                try:
-                    result = z.decompress(byte)
-                    if result:
-                        data_buffer.extend(result)
-                    # is decompression finished?
-                    if z.unused_data != '':
-                        logging.debug("unused data detected")
-                        if len(data_buffer) > 0:
-                            decompressed_chunks.append({
-                                'offset' : offset,
-                                'data' : data_buffer})
-                        data_buffer = []
-                        offset = None
-                        z = None
-                    else:
-                        continue
-                except zlib.error:
-                    if len(data_buffer) > 0:
-                        decompressed_chunks.append({
-                            'offset' : offset,
-                            'data' : data_buffer})
-                    data_buffer = []
-                    offset = None
-                    z = None
+    def __init__(self):
+        AnalysisTask.__init__(self)
 
-            # zlib compresses data starts with an 'x'
-            if z is None and byte == 'x':
-                z = zlib.decompressobj()
-                z.decompress(byte)
-                offset = current_offset - 1
+        self.decompressed_chunks = []
+        self.z = None # zlib decompression object
+        self.data_buffer = []
+        self.offset = None
+        self._reset_decompression()
 
-        # remaining data_buffer
-        if len(data_buffer) > 0:
-            decompressed_chunks.append({
-                'offset' : offset,
-                'data' : data_buffer})
-        data_buffer = []
-        offset = None
-        z = None
+    def _reset_decompression(self):
+        if len(self.data_buffer) > 0:
+            self.decompressed_chunks.append({
+                'offset' : self.offset,
+                'data' : self.data_buffer})
 
-    logging.debug("found {0} compressed chunks".format(len(decompressed_chunks)))
-    for c in decompressed_chunks:
-        logging.debug("offset {0} size {1}".format(c['offset'], len(c['data'])))
+        self.z = None # zlib decompression object
+        self.data_buffer = []
+        self.offset = None
+    
+    def analyze(self, analysis):
+        with open(analysis['storage'], 'rb') as fp:
+            while True:
+                byte = fp.read(1)
+                # EOF?
+                if byte == '':
+                    break
 
-    # XXX cannot store non UTF-8 strings in mongo??
-    # analysis['zlib_blocks'] = decompressed_chunks
+                # are we currently decompressing?
+                if self.z is not None:
+                    try:
+                        result = self.z.decompress(byte)
+                        # did we get a decompressed chunk out?
+                        if result:
+                            self.data_buffer.extend(result)
+                        # is decompression finished?
+                        if self.z.unused_data != '':
+                            self._reset_decompression()
+                        else:
+                            continue
+                    except zlib.error:
+                        self._reset_decompression()
+
+                # zlib compresses data starts with an 'x'
+                if self.z is None and byte == 'x':
+                    self.z = zlib.decompressobj()
+                    self.z.decompress(byte)
+                    self.offset = fp.tell()
+
+            # remaining data_buffer
+            self._reset_decompression()
+
+        logging.debug("found {0} compressed chunks".format(len(self.decompressed_chunks)))
+        for c in self.decompressed_chunks:
+            logging.debug("offset {0} size {1}".format(c['offset'], len(c['data'])))
+
+        # XXX cannot store non UTF-8 strings in mongo??
+        # analysis['zlib_blocks'] = decompressed_chunks
