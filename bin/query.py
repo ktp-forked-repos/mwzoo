@@ -27,6 +27,14 @@ parser.add_argument(
     '-n', '--file-name', action='store', dest='file_name', required=False, default=None,
     help="Query by file name (regex pattern).")
 
+parser.add_argument(
+    '-m', '--mine-type', action='store', dest='mime_type', required=False, default=None,
+    help="Query by mime type (regex pattern).")
+
+parser.add_argument(
+    '-t', '--file-type', action='store', dest='file_type', required=False, default=None,
+    help="Query by file type (regex pattern).")
+
 args = parser.parse_args()
 
 # query the database
@@ -41,6 +49,10 @@ if args.sha1 is not None:
     query['hashes.sha1'] = { '$regex': args.sha1 }
 if args.file_name is not None:
     query['names'] = { '$regex': args.file_name }
+if args.mime_type is not None:
+    query['mime_types'] = { '$regex': args.mime_type }
+if args.file_type is not None:
+    query['file_types'] = { '$regex': args.file_type }
 
 for sample in collection.find(query):
     if args.directory is not None:
