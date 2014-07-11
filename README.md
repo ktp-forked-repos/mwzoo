@@ -12,6 +12,7 @@ Dependencies (required Ubuntu software packages)
  - python-pip
  - python-pefile (install from source in extra/)
  - bitstring (sudo -E pip install bitstring)
+ - requests (sudo -E pip install requests)
  - python-pymongo
  - mongodb-org (see bin/ubuntu_install_mongodb.sh)
  - python-celery

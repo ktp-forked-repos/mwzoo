@@ -206,7 +206,8 @@ class Sample(object):
             mwzoo_tasks.FileTypeAnalysis(),
             mwzoo_tasks.StringAnalysis(),
             mwzoo_tasks.PEAnalysis(),
-            mwzoo_tasks.ZlibAnalysis()
+            mwzoo_tasks.ZlibAnalysis(),
+            mwzoo_tasks.CuckooAnalysis()
     
         ]:
             try:

@@ -370,3 +370,77 @@ class ZlibAnalysis(AnalysisTask):
                     c['content_path'] = content_path
 
             analysis['zlib_blocks'] = self.decompressed_chunks
+
+import requests, json
+class CuckooAnalysis(ConfigurableAnalysisTask):
+    """Execute the file in the configured cuckoo environment."""
+    
+    def __init__(self):
+        ConfigurableAnalysisTask.__init__(self)
+
+        # make sure there are no proxy env settings
+        if 'http_proxy' in os.environ:
+            logging.warning("removing proxy {0}".format(os.environ['http_proxy']))
+            del os.environ['http_proxy']
+        
+    def analyze(self, sample, analysis):
+
+        import pdb
+
+        analysis['behavior'] = []
+
+        #url = "http://localhost:33333/tasks/report"
+        #data = json.dumps({'id' : 43})
+        #r = requests.post(url, data)
+
+        # is there already an analysis for this file?
+        md5_hash = analysis['hashes']['md5']
+        r = requests.get('http://localhost:33333/files/view/md5/{0}'.format(md5_hash))
+        if r.status_code == 200:
+            logging.debug("already analyzed {0}".format(md5_hash))
+            file_info = r.json()
+            sample_id = file_info['sample']['id']
+            # find all the tasks that reference this sample_id
+            r = requests.get('http://localhost:33333/tasks/list')
+            if r.status_code == 200:
+                tasks = r.json()
+                tasks = tasks['tasks']
+                logging.debug("received {0} tasks".format(len(tasks)))
+                for task in tasks:
+                    if task['category'] == 'file' and task['sample_id'] == sample_id:
+                        # query for the report of this task
+                        logging.debug("querying task id {0}".format(task['id']))
+                        r = requests.get('http://localhost:33333/tasks/report/{0}'.format(task['id']))
+                        if r.status_code == 200:
+                            logging.debug("appending report")
+                            report = r.json()
+                            #with open('cuckoo.json', 'wb') as rp:
+                                #rp.write(json.dumps(report, sort_keys=True, indent=4, separators=(',', ': ')))
+                            analysis['behavior'].append({
+                                'sandbox_name': 'cuckoo',
+                                'sandbox_version': report['info']['version'],
+                                'image_name': report['info']['machine'], # TODO this may not be working
+                                'network': report['network'],
+                                'summary': report['behavior']['summary']
+                            })
+                        else:
+                            logging.error("query for task id {0} returned {1}".format(task['id'], r.status_code))
+            else:
+                logging.error("query for task list returned {0}".format(r.status_code))
+
+            logging.debug("received {0} reports for sample {1}".format(len(analysis['behavior']), md5_hash))
+            return
+
+        pdb.set_trace()
+
+        # post it to the thing
+        data = json.dumps({'tags' : 'need,to,do,this'})
+        with open(analysis['storage'], 'rb') as fp:
+            files = { 
+                'file': ( analysis['names'][0], fp ),
+                'tags': 'need,to,do.this'
+            }
+
+            r = requests.post('http://localhost:33333/tasks/create/file', files=files)
+
+        pdb.set_trace()
