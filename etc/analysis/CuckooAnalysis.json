@@ -1,5 +1,5 @@
 {
-    "url" : "http://localchost:33333",
+    "base_url" : "http://localhost:33333",
     "autosubmit" : true,
     "mapping" : {
         "sbox-1-exec" : {
