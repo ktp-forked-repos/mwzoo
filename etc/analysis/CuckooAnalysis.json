@@ -1,0 +1,51 @@
+{
+    "url" : "http://localchost:33333",
+    "autosubmit" : true,
+    "mapping" : {
+        "sbox-1-exec" : {
+            "mime_types": [
+                "application/x-dosexec",
+                "application/pdf"
+            ],
+            "file_extensions": [
+                "exe",
+                "pdf",
+                "jar"
+            ]
+        },
+        "sbox-2-exec" : {
+            "mime_types": [
+                "application/x-dosexec",
+                "application/pdf"
+            ],
+            "file_extensions": [
+                "exe",
+                "pdf",
+                "doc",
+                "docx",
+                "xls",
+                "xlsx",
+                "ppt",
+                "pptx"
+            ]
+        },
+        "sbox-3-exec" : {
+            "mime_types": [
+                "application/pdf"
+            ],
+            "file_extensions": [
+                "pdf",
+                "jar"
+            ]
+        },
+        "sbox-4-exec" : {
+            "mime_types": [
+                "application/pdf"
+            ],
+            "file_extensions": [
+                "exe",
+                "pdf"
+            ]
+        }
+    }
+}

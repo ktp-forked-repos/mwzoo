@@ -13,6 +13,7 @@ import os, os.path
 import logging, logging.config
 import traceback
 import ConfigParser
+import time
 
 # PE parsing stuff
 import pefile
@@ -59,6 +60,17 @@ $MWZOO_HOME/etc/analysis/$CLASS_NAME.ini"""
 
         self.config = ConfigParser.ConfigParser()
         self.config.read(config_path)
+
+    def load_json_configuration(self):
+        import json
+        json_path = os.path.join(os.environ['MWZOO_HOME'], 'etc', 'analysis', self.__class__.__name__ + '.json')
+        if not os.path.exists(json_path):
+            raise ConfigurationRequiredError()
+
+        with open(json_path, 'rb') as fp:
+            data = fp.read()
+            print data
+            self.config = json.loads(data)
 
 class YaraAnalysis(ConfigurableAnalysisTask):
     def __init__(self):
@@ -382,6 +394,9 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         if 'http_proxy' in os.environ:
             logging.warning("removing proxy {0}".format(os.environ['http_proxy']))
             del os.environ['http_proxy']
+
+        # XXX load json configuration
+        self.load_json_configuration()
         
     def analyze(self, sample, analysis):
 
@@ -431,16 +446,78 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
             logging.debug("received {0} reports for sample {1}".format(len(analysis['behavior']), md5_hash))
             return
 
-        pdb.set_trace()
+        elif r.status_code == 404:
+            # are we subumitting new samples to the sandbox?
+            if not self.config['autosubmit']:
+                logging.debug("autosubmit disabled")
+                return
 
-        # post it to the thing
-        data = json.dumps({'tags' : 'need,to,do,this'})
-        with open(analysis['storage'], 'rb') as fp:
-            files = { 
-                'file': ( analysis['names'][0], fp ),
-                'tags': 'need,to,do.this'
-            }
+            # determine what machine to use based on the analysis performed by the FileType analysis module
+            target_machines = []
+            for machine in self.config['mapping'].keys():
+                for mime_type in self.config['mapping'][machine]['mime_types']:
+                    if any([mime_type in x for x in analysis['mime_types']]):
+                        logging.debug("found machine {0} for mime_type {1}".format(machine, mime_type))
+                        target_machines.append(machine)
 
-            r = requests.post('http://localhost:33333/tasks/create/file', files=files)
+            if len(target_machines) < 1:
+                logging.debug("no target machines found")
+                return
 
-        pdb.set_trace()
+            task_ids = []
+            for machine in target_machines:
+                logging.info("submitting sample {0} to machine {1}".format(md5_hash, machine))
+                with open(analysis['storage'], 'rb') as fp:
+                    files = { 
+                        'file': ( analysis['names'][0], fp ),
+                        'machine': machine
+                    }
+
+                    r = requests.post('http://localhost:33333/tasks/create/file', files=files)
+                    if r.status_code != 200:
+                        logging.error(
+"unable to submit sample {0} to machine {1}: {2}".format(
+    md5_hash, machine, str(r)))
+                        return
+
+                    r = r.json()
+                    task_id = r['task_id']
+                    logging.debug("got task_id {0}".format(task_id))
+                    task_ids.append(task_id)
+
+            # wait for them to finish
+            logging.debug("waiting for analysis to finish")
+            while True:
+
+                time.sleep(1)
+
+                error = False
+                finished_count = 0
+                for task_id in task_ids:
+                    try:
+                        r = requests.get('http://localhost:33333/tasks/view/{0}'.format(task_id))
+                        if r.status_code == 200:
+                            r = r.json()
+                            status = r['task']['status']
+                            logging.debug("got status {0} for task {1}".format(status, task_id))
+                            if status != 'pending' and status != 'running':
+                                logging.debug('detected status {0}'.format(status))
+                                finished_count += 1
+                        else:
+                            raise Exception("invalid status code {0}".format(r.status_code))
+                    except Exception, e:
+                        logging.error(
+    "caught exception when querying task(s) status: {0}".format(str(e)))
+                        traceback.print_exc()
+                        error = True
+                        break
+
+                if error:
+                    break
+
+                if finished_count == len(task_ids):
+                    break
+
+                logging.debug("finished count = {0}".format(finished_count))
+
+            # TODO get the analysis info from above
