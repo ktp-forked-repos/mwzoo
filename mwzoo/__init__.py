@@ -4,15 +4,14 @@
 # malware zoo
 #
 
-import argparse
 import sys
 import os, os.path
-import ConfigParser
 import hashlib
 import time
 import base64
 import logging, logging.config
 import traceback
+import ConfigParser
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -26,7 +25,7 @@ from pymongo import MongoClient
 from multiprocessing import Process
 
 # analysis tasks
-import analysis.tasks as mwzoo_tasks
+import mwzoo.analysis.tasks as mwzoo_tasks
 
 # global config
 global_config = None
@@ -224,35 +223,26 @@ class Sample(object):
         collection = db['analysis']
         collection.save(analysis)
 
-class MalwareZoo(resource.Resource):
-    def __init__(self):
-        resource.Resource.__init__(self)
-
 class FileUploadHandler(xmlrpc.XMLRPC):
     def xmlrpc_upload(self, file_name, file_content, tags, sources):
         """Upload the given contents and record the included metadata."""
         return Sample(file_name, base64.b64decode(file_content), tags, sources).save()
         #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='MalwareZoo')
-    parser.add_argument(
-        '-c', '--config-path', action='store', dest='config_path', default='etc/mwzoo.ini', required=False,
-        help='Path to configuration file for the malware zoo.')
-    args = parser.parse_args()
+class MalwareZoo(resource.Resource):
+    def __init__(self):
+        resource.Resource.__init__(self)
+        self.putChild("upload", FileUploadHandler())
 
-    if not os.path.exists(args.config_path):
-        sys.stderr.write('missing configuration file {0}\n'.format(args.config_path))
-        sys.exit(1)
+    def load_global_config(self, config_path):
+        global global_config
+        global_config = ConfigParser.ConfigParser()
+        global_config.read(config_path)
 
-    #logging.config.dictConfig(log_config)
-    logging.config.fileConfig('etc/logging.conf')
+    def start(self):
+        reactor.listenTCP(8081, server.Site(self))
+        reactor.run()
 
-    global_config = ConfigParser.ConfigParser()
-    global_config.read(args.config_path)
+    def stop(self):
+        pass
 
-    logging.debug("starting malware zoo")
-    malware_zoo = MalwareZoo()
-    malware_zoo.putChild("upload", FileUploadHandler())
-    reactor.listenTCP(8081, server.Site(malware_zoo))
-    reactor.run()

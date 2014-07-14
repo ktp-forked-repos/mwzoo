@@ -7,7 +7,7 @@
 
 from __future__ import absolute_import
 from subprocess import Popen, PIPE
-from analysis.celery import celery
+from mwzoo.analysis.celery import celery
 from celery import group, chord, chain
 import os, os.path
 import logging, logging.config
