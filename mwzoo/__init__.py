@@ -237,6 +237,11 @@ class MalwareZoo(resource.Resource):
     def load_global_config(self, config_path):
         global global_config
         global_config = ConfigParser.ConfigParser()
+
+        # make sure the configuration file exists
+        if not os.path.exists(config_path):
+            raise IOError("configuration file {0} does not exist".format(config_path))
+
         global_config.read(config_path)
 
     def start(self):
