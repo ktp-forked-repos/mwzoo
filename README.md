@@ -5,7 +5,9 @@ Malware Zoo
 
 Quick Start
  - export an environment variable called MALWARE_ZOO that points to the base directory
- - execute bin/start-mwzoo.sh
+ - execute ./mwzoo.py # start the mwzoo server
+ - execute ./submit.py -f evil.exe # submit a file for analysis
+ - execute ./query.py # query based on some criteria
 
 Dependencies (required Ubuntu software packages)
  - python-twisted

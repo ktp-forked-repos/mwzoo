@@ -2,31 +2,31 @@ HOW TO GUIDE
 
 HOW TO START MWZOO
 ==============================================================================
-jdavison@vm:~/projects/mwzoo$ bin/start-mwzoo.sh
+jdavison@vm:~/projects/mwzoo$ ./mwzoo.py
 starting mwzoo web services
 
 HOW TO SUBMIT A NEW SAMPLE
 ==============================================================================
-jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && bin/submit.py -f notepad.exe
+jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && ./submit.py -f notepad.exe
 malware/a25/a25534d24de08c18a9a0b6ba0a2ac41575260524
 
 
 HOW TO QUERY THE ZOO
 ==============================================================================
 # query for exact md5
-jdavison@vm:~/projects/mwzoo$ bin/query.py --md5 d378bffb70923139d6a4f546864aa61
+jdavison@vm:~/projects/mwzoo$ ./query.py --md5 d378bffb70923139d6a4f546864aa61
 notepad.exe
 
 # query for part of an md5
-jdavison@vm:~/projects/mwzoo$ bin/query.py --md5 d378bf
+jdavison@vm:~/projects/mwzoo$ ./query.py --md5 d378bf
 notepad.exe
 
 # query for all .exe files
-jdavison@vm:~/projects/mwzoo$ bin/query.py --file-name '\.exe$'
+jdavison@vm:~/projects/mwzoo$ ./query.py --file-name '\.exe$'
 notepad.exe
 
 # store all the files that match your query in a directory
-jdavison@vm:~/projects/mwzoo$ bin/query.py --md5 d3 -d temp
+jdavison@vm:~/projects/mwzoo$ ./query.py --md5 d3 -d temp
 temp/notepad.exe
 
 PROGRAM EXECUTION FLOW
@@ -39,6 +39,7 @@ PROGRAM EXECUTION FLOW
 HOW TO ADD A NEW ANALYSIS TASK (analysis/tasks.py)
 #1) derive a new class from AnalysisTask (or ConfigurableAnalysisTask)
 #2) if you want it to have configuration options, derive from ConfigurableAnalysisTask and create a etc/analysis/YOUR_CLASS_NAME.ini file
+#2a) note that there is an option for loading JSON files as the configuration as well
 #3) override the analyze method which receives a reference to the Sample objectk, and a dict() called analysis, which is what goes into mongodb
 #4) do your analysis, store the results somewhere in the dict()
 #5) if you need to store binary data somewhere, see the YaraAnalysis task as an example
