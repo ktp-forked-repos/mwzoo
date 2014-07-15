@@ -43,7 +43,7 @@ class config_test(unittest.TestCase):
     # these are a bit redundant but require use to think about tests
     # when the change what goes into the configuration file
 
-    def deafult_config_tests(self):
+    def default_config_tests(self):
         """Default config has expected section names."""
         self.zoo.load_global_config(DEFAULT_CONFIG_PATH)
         # test that these sections exist
