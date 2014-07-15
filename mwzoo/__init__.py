@@ -30,6 +30,32 @@ import mwzoo.analysis.tasks as mwzoo_tasks
 # global config
 global_config = None
 
+class Database(object):
+    def __init__(self):
+        """Connects to the mongodb specified in the config file."""
+        assert global_config is not None
+
+        self._client = MongoClient(
+            host=global_config.get('mongodb', 'hostname'),
+            port=global_config.getint('mongodb', 'port'))
+        self._db = self._client[global_config.get('mongodb', 'database')]
+        self._collection = self._db[global_config.get('mongodb', 'collection')]
+
+    @property
+    def collection(self):
+        """Returns the mongodb collection used to store the analysis results."""
+        return self._collection
+
+    @property
+    def database(self):
+        """Returns the mongodb database used to store all mwzoo-related collections."""
+        return self._db
+
+    @property
+    def connection(self):
+        """Returns the mongodb connection instance."""
+        return self._client
+
 class Sample(object):
     def __init__(self, file_name, file_content, tags, sources):
         self.file_name = file_name
@@ -65,11 +91,8 @@ class Sample(object):
             logging.debug("sample {0} already exists".format(sha1_hash))
 
         # do we already have an analysis of this file?
-        client = MongoClient()
-        db = client['mwzoo']
-        collection = db['analysis']
-
-        analysis = collection.find_one({'hashes.sha1': sha1_hash})
+        db = Database()
+        analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
 
         # have we seen this sample before?
         if analysis is not None:
@@ -79,7 +102,7 @@ class Sample(object):
                 analysis['names'].append(self.file_name)
         else:
             # create a new analysis for this sample
-            collection.insert({
+            db.collection.insert({
                 'storage': target_file,
                 'names': [ self.file_name ] ,
                 'mime_types' : [ ], # file -i
@@ -172,7 +195,7 @@ class Sample(object):
             })
 
             # then get it back out
-            analysis = collection.find_one({'hashes.sha1': sha1_hash})
+            analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
 
         #
         # (eventually use celery to distribute the tasks)
@@ -218,10 +241,8 @@ class Sample(object):
                 traceback.print_exc()
 
         # save the results to the database!
-        client = MongoClient()
-        db = client['mwzoo']
-        collection = db['analysis']
-        collection.save(analysis)
+        db = Database()
+        db.collection.save(analysis)
 
 class FileUploadHandler(xmlrpc.XMLRPC):
     def xmlrpc_upload(self, file_name, file_content, tags, sources):

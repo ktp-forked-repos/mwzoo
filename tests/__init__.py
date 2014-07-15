@@ -122,12 +122,72 @@ class mwzoo_test(unittest.TestCase):
         raise Exception(
 "Unable to connect to malware zoo {0}:{1}".format(mwzoo_host, mwzoo_port))
 
-class submit_test(unittest.TestCase):
-    """Tests uploading samples to the malware zoo."""
+class database_test(unittest.TestCase):
+    def setUp(self):
+        self.zoo = mwzoo.MalwareZoo()
+        self.zoo.load_global_config(TEST_CONFIG_PATH)
+        self.db = mwzoo.Database()
+
+    def connection_test(self):
+        """Test Database object connectivity."""
+        assert self.db.connection.alive()
+
+    def property_test(self):
+        """Test expected properties of Database object."""
+        assert hasattr(self.db, 'connection')
+        assert hasattr(self.db, 'database')
+        assert hasattr(self.db, 'collection')
+
+    def crud_test(self):
+        """Test basic create, update, delete on mongodb."""
+        test_document = { 'test': 'document' }
+        self.db.collection.remove(None, multi=True)
+        self.db.collection.insert(test_document, manipulate=True)
+
+        assert '_id' in test_document
+        
+        result = self.db.collection.find({'_id': test_document['_id']})
+        assert result is not None
+        assert result.count() == 1
+        assert 'test' in result[0]
+
+        result = self.db.collection.find_one({'_id': test_document['_id']})
+        assert result is not None
+        assert result['_id'] == test_document['_id']
+
+        result['test'] = 'world'
+        self.db.collection.save(result)
+        result = self.db.collection.find_one({'_id': test_document['_id']})
+        assert result['test'] == 'world'
+
+        self.db.collection.remove(None, multi=True)
+        result = self.db.collection.find({})
+        assert result.count() == 0
+
+class sample_test(unittest.TestCase):
+    """Tests the Sample class."""
     def setUp(self):
         pass
 
     def tearDown(self):
         pass
 
-    
+    def test_save(self):
+        """Validate file submission."""
+        with open('/dev/urandom', 'rb') as fp:
+            file_content = fp.read(1024)
+
+        file_name = 'sample.exe'
+        tags = ['tag1', 'tag2']
+        sources = ['source1', 'source2']
+
+        s = mwzoo.Sample(file_name, file_content, tags, sources)
+
+        # make sure properties are set
+        assert s.file_name == file_name
+        assert s.file_content == file_content
+        self.assertItemsEqual(s.tags, tags)
+        self.assertItemsEqual(s.sources, sources)
+
+        #s.save()
+        
