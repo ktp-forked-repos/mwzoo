@@ -1,23 +1,33 @@
 import mwzoo
 import sys
-from nose.tools import raises
+import os
+from nose.tools import raises, timed
 import unittest
 import nose
 from ConfigParser import ParsingError
+import atexit
+import xmlrpclib
+import time
 
 VALID_CONFIG_PATH = 'tests/etc/valid_config.ini'
 INVALID_CONFIG_PATH = 'tests/etc/invalid_config.ini'
 MISSING_CONFIG_PATH = 'tests/etc/missing_config.ini' # does not exist
 DEFAULT_CONFIG_PATH = 'etc/mwzoo_default.ini'
+TEST_CONFIG_PATH = 'etc/mwzoo_test.ini'
 
 def setup_package():
-    # create a special configuration for the entire malwarezoo
+    # load the test configuration
+    
     pass
 
 def teardown_package():
+    # delete the test mongodb
+    
     pass
 
 class config_test(unittest.TestCase):
+    """Tests configuration files."""
+
     def setUp(self):
         self.zoo = mwzoo.MalwareZoo()
 
@@ -48,7 +58,7 @@ class config_test(unittest.TestCase):
         self.zoo.load_global_config(DEFAULT_CONFIG_PATH)
         # test that these sections exist
         self.assertItemsEqual(mwzoo.global_config.sections(),
-            [ 'core', 'storage', 'mongodb', 'mysql' ])
+            [ 'networking', 'storage', 'mongodb', 'mysql' ])
 
         # just test that these settings exist
         assert mwzoo.global_config.get(
@@ -71,3 +81,53 @@ class config_test(unittest.TestCase):
             'mysql', 'user', None) is not None
         assert mwzoo.global_config.get(
             'mysql', 'password', None) is not None
+
+class mwzoo_test(unittest.TestCase):
+    """Tests basic MalwareZoo functionality."""
+
+    def setUp(self):
+        self.zoo = mwzoo.MalwareZoo()
+        self.zoo.load_global_config(TEST_CONFIG_PATH)
+
+        from multiprocessing import Process
+        self.zoo_process = Process(target=self._mwzoo_process)
+        self.zoo_process.daemon = True
+        self.zoo_process.start()
+
+    def _mwzoo_process(self):
+        self.zoo.start()
+
+    def tearDown(self):
+        pass
+
+    def startup_test(self):
+        """Ensure malware starts up and listens on the given port."""
+        import socket, time
+
+        mwzoo_host = mwzoo.global_config.get('networking', 'hostname')
+        mwzoo_port = mwzoo.global_config.getint('networking', 'port')
+        
+        # try to connect to the local port
+        for x in xrange(3):
+            s = socket.socket()
+            try:
+                s.connect(('localhost', mwzoo_port))
+                s.close()
+                return
+            except Exception, e:
+                pass
+
+            time.sleep(1)
+
+        raise Exception(
+"Unable to connect to malware zoo {0}:{1}".format(mwzoo_host, mwzoo_port))
+
+class submit_test(unittest.TestCase):
+    """Tests uploading samples to the malware zoo."""
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    

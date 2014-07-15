@@ -250,9 +250,11 @@ class MalwareZoo(resource.Resource):
         global_config.read(config_path)
 
     def start(self):
-        reactor.listenTCP(8081, server.Site(self))
+        bind_host = global_config.get('networking', 'hostname')
+        bind_port = global_config.getint('networking', 'port')
+        reactor.listenTCP(bind_port, server.Site(self), interface=bind_host)
         reactor.run()
 
     def stop(self):
-        pass
+        reactor.stop()
 
