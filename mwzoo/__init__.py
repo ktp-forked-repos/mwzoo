@@ -240,6 +240,11 @@ class MalwareZoo(resource.Resource):
 
         # make sure the configuration file exists
         if not os.path.exists(config_path):
+            # inform the user about the default configuration available
+            if os.path.exists('etc/mwzoo_default.ini'):
+                logging.fatal(
+"*** HEY MAN *** A default configuration is available! " +  
+"Type (cd etc && ln -s mwzoo_default.ini mwzoo.ini) and try again!")
             raise IOError("configuration file {0} does not exist".format(config_path))
 
         global_config.read(config_path)
