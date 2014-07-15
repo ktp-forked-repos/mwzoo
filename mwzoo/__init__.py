@@ -62,6 +62,7 @@ class Sample(object):
         self.file_content = file_content
         self.tags = tags
         self.sources = sources
+        self.analysis = {}
         self.storage_container_dir = None
 
     def save(self):
@@ -92,14 +93,14 @@ class Sample(object):
 
         # do we already have an analysis of this file?
         db = Database()
-        analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
+        self.analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
 
         # have we seen this sample before?
-        if analysis is not None:
+        if self.analysis is not None:
             # have we seen this sample with this file name before?
-            if self.file_name not in analysis['names']:
+            if self.file_name not in self.analysis['names']:
                 logging.debug("appending file name {0} to sample {1}".format(self.file_name, sha1_hash))
-                analysis['names'].append(self.file_name)
+                self.analysis['names'].append(self.file_name)
         else:
             # create a new analysis for this sample
             db.collection.insert({
@@ -195,7 +196,7 @@ class Sample(object):
             })
 
             # then get it back out
-            analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
+            self.analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
 
         #
         # (eventually use celery to distribute the tasks)
@@ -217,11 +218,11 @@ class Sample(object):
     self.storage_container_dir,
     str(e)))
 
-        self.process_sample(analysis)
+        self.process()
 
         return target_file
 
-    def process_sample(self, analysis):
+    def process(self):
         for task in [ 
             mwzoo_tasks.HashAnalysis(),
             mwzoo_tasks.YaraAnalysis(),
@@ -233,7 +234,7 @@ class Sample(object):
     
         ]:
             try:
-                task.analyze(self, analysis)
+                task.analyze(self)
             except Exception, e:
                 logging.error("analysis task {0} failed: {1}".format(
                     analysis.__class__.__name__, 
@@ -242,7 +243,7 @@ class Sample(object):
 
         # save the results to the database!
         db = Database()
-        db.collection.save(analysis)
+        db.collection.save(self.analysis)
 
 class FileUploadHandler(xmlrpc.XMLRPC):
     def xmlrpc_upload(self, file_name, file_content, tags, sources):

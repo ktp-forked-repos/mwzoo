@@ -39,7 +39,7 @@ import zlib
 
 class AnalysisTask(object):
     """Base class for all analysis tasks."""
-    def analyze(self, sample, analysis):
+    def analyze(self, sample):
         """Override this method to provide analysis.  The analysis storage container is passed as the only argument."""
         raise NotImplementedError()
 
@@ -79,7 +79,7 @@ class YaraAnalysis(ConfigurableAnalysisTask):
     def __init__(self):
         ConfigurableAnalysisTask.__init__(self)
 
-    def analyze(self, sample, analysis):
+    def analyze(self, sample):
         args = [ self.config.get('global', 'yara_program') ]
         args.extend(self.config.get('global', 'yara_options').split())
         args.append(self.config.get('global', 'yara_rules'))
@@ -87,8 +87,8 @@ class YaraAnalysis(ConfigurableAnalysisTask):
         storage_dir = os.path.join(sample.storage_container_dir, self.config.get('global', 'output_dir'))
         os.makedirs(storage_dir)
 
-        stdout_path = os.path.join(storage_dir, analysis['hashes']['sha1'] + '.stdout')
-        stderr_path = os.path.join(storage_dir, analysis['hashes']['sha1'] + '.stderr')
+        stdout_path = os.path.join(storage_dir, sample.analysis['hashes']['sha1'] + '.stdout')
+        stderr_path = os.path.join(storage_dir, sample.analysis['hashes']['sha1'] + '.stderr')
 
         with open(stdout_path, 'wb') as stdout:
             with open(stderr_path, 'wb') as stderr:
@@ -97,8 +97,8 @@ class YaraAnalysis(ConfigurableAnalysisTask):
                 p.wait()
                 logging.debug("finished executing {0}".format(' '.join(args)))
 
-        analysis['yara']['stdout_path'] = stdout_path
-        analysis['yara']['stderr_path'] = stderr_path
+        sample.analysis['yara']['stdout_path'] = stdout_path
+        sample.analysis['yara']['stderr_path'] = stderr_path
 
         # XXX people could be collecting rules from various places, not sure it makes sense
         # but it would be nice to find a way to know what version of the rules was used
@@ -107,67 +107,67 @@ class YaraAnalysis(ConfigurableAnalysisTask):
             ## record the remotes so we know where it came from
             #p = Popen(['git', '--git-dir', self.config.get('global', 'yara_rules'), 'remote', '-v'], stdout=PIPE)
             #(stdout, stderr) = p.communicate()
-            #analysis['yara']['repository'] = stdout
+            #sample.analysis['yara']['repository'] = stdout
 
             ## record the current commit so we know what version of the rules was executed
             #p = Popen(['git', '--git-dir', self.config.get('global', 'yara_rules'), 'log', '-n', '1', '--pretty=oneline'], stdout=PIPE)
             #(stdout, stderr) = p.communicate()
-            #analysis['yara']['commit'] = stdout
+            #sample.analysis['yara']['commit'] = stdout
 
 class HashAnalysis(AnalysisTask):
     """Perform various hashing algorithms."""
-    def analyze(self, sample, analysis):
-        with open(analysis['storage'], 'rb') as fp:
+    def analyze(self, sample):
+        with open(sample.analysis['storage'], 'rb') as fp:
             content = fp.read()
 
         # md5
         m = hashlib.md5()
         m.update(content)
-        analysis['hashes']['md5'] = m.hexdigest()
+        sample.analysis['hashes']['md5'] = m.hexdigest()
 
         # sha256
         m = hashlib.sha256()
         m.update(content)
-        analysis['hashes']['sha256'] = m.hexdigest()
+        sample.analysis['hashes']['sha256'] = m.hexdigest()
 
         # ssdeep
-        p = Popen(['ssdeep', analysis['storage']], stdout=PIPE)
+        p = Popen(['ssdeep', sample.analysis['storage']], stdout=PIPE)
         (stdout, stderr) = p.communicate()
-        analysis['hashes']['ssdeep'] = stdout
+        sample.analysis['hashes']['ssdeep'] = stdout
 
 class FileTypeAnalysis(AnalysisTask):
     """Use the file command to record what kind of file this might be."""
-    def analyze(self, sample, analysis):
-        p = Popen(['file', analysis['storage']], stdout=PIPE)
+    def analyze(self, sample):
+        p = Popen(['file', sample.analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
 
         # example file command output:
         # putty.exe: PE32 executable (GUI) Intel 80386, for MS Windows
         # so len(file_name) + 2 (: + space)
-        analysis['file_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+        sample.analysis['file_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
 
         # same thing but for the mime type
-        p = Popen(['file', '-i', analysis['storage']], stdout=PIPE)
+        p = Popen(['file', '-i', sample.analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        analysis['mime_types'].append(stdoutdata[len(analysis['storage']) + 2:].strip())
+        sample.analysis['mime_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
 
 class StringAnalysis(AnalysisTask):
-    def analyze(self, sample, analysis):
+    def analyze(self, sample):
         """Extract ASCII and "wide" (Unicode) strings."""
-        p = Popen(['strings', analysis['storage']], stdout=PIPE)
+        p = Popen(['strings', sample.analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        analysis['strings']['ascii'] = stdoutdata.split('\n')
+        sample.analysis['strings']['ascii'] = stdoutdata.split('\n')
 
-        p = Popen(['strings', '-e', 'l', analysis['storage']], stdout=PIPE)
+        p = Popen(['strings', '-e', 'l', sample.analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        analysis['strings']['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
+        sample.analysis['strings']['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
 
 class PEAnalysis(AnalysisTask):
     """Parse the PE sections of the file."""
 
-    def analyze(self, sample, analysis):
+    def analyze(self, sample):
         try:
-            self.exe =  pefile.PE(analysis['storage'], fast_load=True)
+            self.exe =  pefile.PE(sample.analysis['storage'], fast_load=True)
         except Exception, e:
             logging.debug("pefile.PE failed: {0}".format(str(e)))
             return
@@ -180,13 +180,13 @@ class PEAnalysis(AnalysisTask):
             self._pe_process_imphash ]:
 
             try:
-                analysis_method(analysis)
+                analysis_method(sample)
             except Exception, e:
                 logging.error("{0} failed: {1}".format(analysis_method.__name__, str(e)))
                 traceback.print_exc()
         
 
-    def _pe_process_sections(self, analysis):
+    def _pe_process_sections(self, sample):
 
         # logic for the pesections
         sections = []
@@ -198,11 +198,11 @@ class PEAnalysis(AnalysisTask):
             s['raw_size'] = section.SizeOfRawData
             sections.append(s)
 
-        analysis['sections'] = sections
+        sample.analysis['sections'] = sections
 
-    def _pe_process_imports(self, analysis):
+    def _pe_process_imports(self, sample):
         """logic to calculate imports"""
-        analysis['imports'] = []
+        sample.analysis['imports'] = []
         imports = []
         for entry in self.exe.DIRECTORY_ENTRY_IMPORT:
             i = {}
@@ -210,20 +210,20 @@ class PEAnalysis(AnalysisTask):
             for imp in entry.imports:
                 i['address'] = hex(imp.address)
                 i['import_name'] = imp.name 
-                analysis['imports'].append(i)
+                sample.analysis['imports'].append(i)
 
-    def _pe_process_exports(self, analysis):
+    def _pe_process_exports(self, sample):
         """logic to calculate exports"""
-        analysis['exports'] = []
+        sample.analysis['exports'] = []
         imports = []
         for entry in self.exe.DIRECTORY_ENTRY_EXPORT.symbols:
             i = {}
             i['name'] = entry.name
             i['address'] = hex(self.exe.OPTIONAL_HEADER.ImageBase + entry.address)
             i['ordinal'] = entry.ordinal
-            analysis['exports'].append(i)
+            sample.analysis['exports'].append(i)
 
-    def _pe_process_pehash(self, analysis):
+    def _pe_process_pehash(self, sample):
 
         #
         # compute pehash
@@ -305,10 +305,10 @@ class PEAnalysis(AnalysisTask):
         m = hashlib.sha1()
         m.update(pehash_bin.tobytes())
 
-        analysis['hashes']['pehash'] = m.hexdigest()
+        sample.analysis['hashes']['pehash'] = m.hexdigest()
 
-    def _pe_process_imphash(self, analysis):
-        analysis['hashes']['imphash'] = self.exe.get_imphash()
+    def _pe_process_imphash(self, sample):
+        sample.analysis['hashes']['imphash'] = self.exe.get_imphash()
 
 class ZlibAnalysis(AnalysisTask):
     """Perform a brute force zlib decompression attempt against every byte in the file."""
@@ -333,8 +333,8 @@ class ZlibAnalysis(AnalysisTask):
         self.data_buffer = []
         self.offset = None
     
-    def analyze(self, sample, analysis):
-        with open(analysis['storage'], 'rb') as fp:
+    def analyze(self, sample):
+        with open(sample.analysis['storage'], 'rb') as fp:
             while True:
                 byte = fp.read(1)
                 # EOF?
@@ -384,7 +384,7 @@ class ZlibAnalysis(AnalysisTask):
                     del c['content']
                     c['content_path'] = content_path
 
-            analysis['zlib_blocks'] = self.decompressed_chunks
+            sample.analysis['zlib_blocks'] = self.decompressed_chunks
 
 import requests, json
 class CuckooAnalysis(ConfigurableAnalysisTask):
@@ -404,11 +404,11 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         self.base_url = self.config['base_url']
         self.autosubmit = self.config['autosubmit']
 
-    def _refresh_analysis(self, sample, analysis):
+    def _refresh_analysis(self, sample):
         """Loads (or refreshes) the cuckoo analysis for the given sample."""
 
-        md5_hash = analysis['hashes']['md5']
-        analysis['behavior'] = [] 
+        md5_hash = sample.analysis['hashes']['md5']
+        sample.analysis['behavior'] = [] 
 
         try:
             r = requests.get('{0}/files/view/md5/{1}'.format(self.base_url, md5_hash))
@@ -440,7 +440,7 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
                             # we're only going to record a subset of the information    
                             # TODO query for the config of the machine that executed and filter out the 
                             # TODO traffic generated by the reporting
-                            analysis['behavior'].append({
+                            sample.analysis['behavior'].append({
                                 'sandbox_name': 'cuckoo',
                                 'sandbox_version': report['info']['version'],
                                 'image_name': report['info']['machine'], # TODO this may not be working
@@ -453,19 +453,19 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
             else:
                 logging.error("query for task list returned {0}".format(r.status_code))
 
-            logging.debug("received {0} reports for sample {1}".format(len(analysis['behavior']), md5_hash))
+            logging.debug("received {0} reports for sample {1}".format(len(sample.analysis['behavior']), md5_hash))
 
-    def _submit(self, sample, analysis):
+    def _submit(self, sample):
         """Submits a sample to the cuckoo server for analysis, waits for the results."""
 
-        md5_hash = analysis['hashes']['md5']
+        md5_hash = sample.analysis['hashes']['md5']
 
         # determine what machine to use based on the analysis performed by the FileType analysis module
         # TODO only using mime_types at this point, expand to others
         target_machines = []
         for machine in self.config['mapping'].keys():
             for mime_type in self.config['mapping'][machine]['mime_types']:
-                if any([mime_type in x for x in analysis['mime_types']]):
+                if any([mime_type in x for x in sample.analysis['mime_types']]):
                     logging.debug("found machine {0} for mime_type {1}".format(machine, mime_type))
                     target_machines.append(machine)
 
@@ -476,9 +476,9 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         task_ids = []
         for machine in target_machines:
             logging.info("submitting sample {0} to machine {1}".format(md5_hash, machine))
-            with open(analysis['storage'], 'rb') as fp:
+            with open(sample.analysis['storage'], 'rb') as fp:
                 files = { 
-                    'file': ( analysis['names'][0], fp ),
+                    'file': ( sample.analysis['names'][0], fp ),
                     'machine': machine
                 }
 
@@ -530,12 +530,12 @@ md5_hash, machine, str(r)))
 
             #logging.debug("finished count = {0}".format(finished_count))
         
-    def analyze(self, sample, analysis):
+    def analyze(self, sample):
         """Attempt to download existing cuckoo analysis, or submit the sample for analysis."""
 
-        self._refresh_analysis(sample, analysis)
-        if len(analysis['behavior']) < 1:
+        self._refresh_analysis(sample)
+        if len(sample.analysis['behavior']) < 1:
             # are we subumitting new samples to the sandbox?
             if self.config['autosubmit']:
-                self._submit(sample, analysis)
-                self._refresh_analysis(sample, analysis)
+                self._submit(sample)
+                self._refresh_analysis(sample)
