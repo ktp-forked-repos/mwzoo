@@ -58,9 +58,9 @@ if args.sha1 is not None:
 if args.file_name is not None:
     query['names'] = { '$regex': args.file_name }
 if args.mime_type is not None:
-    query['mime_types'] = { '$regex': args.mime_type }
+    query['analysis.details.mime_types'] = { '$regex': args.mime_type }
 if args.file_type is not None:
-    query['file_types'] = { '$regex': args.file_type }
+    query['analysis.details.file_types'] = { '$regex': args.file_type }
 if args.tag is not None:
     query['tags'] = { '$regex': args.tag }
 if args.source is not None:

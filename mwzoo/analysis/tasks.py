@@ -76,6 +76,13 @@ $MWZOO_HOME/etc/analysis/$CLASS_NAME.json"""
             print data
             self.config = json.loads(data)
 
+class SsdeepAnalysis(AnalysisTask):
+    """Compute ssdeep hash of the sample."""
+    def analyze(self, sample):
+        p = Popen(['ssdeep', sample.content_path], stdout=PIPE, stderr=PIPE)
+        (stdout, stderr) = p.communicate()
+        return { 'hash': stdout }
+
 class YaraAnalysis(ConfigurableAnalysisTask):
     def __init__(self):
         ConfigurableAnalysisTask.__init__(self)
@@ -88,8 +95,8 @@ class YaraAnalysis(ConfigurableAnalysisTask):
         storage_dir = os.path.join(sample.storage_path, self.config.get('global', 'output_dir'))
         os.makedirs(storage_dir)
 
-        stdout_path = os.path.join(storage_dir, sample.analysis['hashes']['sha1'] + '.stdout')
-        stderr_path = os.path.join(storage_dir, sample.analysis['hashes']['sha1'] + '.stderr')
+        stdout_path = os.path.join(storage_dir, sample.sha1_hash + '.stdout')
+        stderr_path = os.path.join(storage_dir, sample.sha1_hash + '.stderr')
 
         with open(stdout_path, 'wb') as stdout:
             with open(stderr_path, 'wb') as stderr:
@@ -98,8 +105,10 @@ class YaraAnalysis(ConfigurableAnalysisTask):
                 p.wait()
                 logging.debug("finished executing {0}".format(' '.join(args)))
 
-        sample.analysis['yara']['stdout_path'] = stdout_path
-        sample.analysis['yara']['stderr_path'] = stderr_path
+        return {
+            'stdout_path': stdout_path,
+            'stderr_path': stderr_path
+        }
 
         # XXX people could be collecting rules from various places, not sure it makes sense
         # but it would be nice to find a way to know what version of the rules was used
@@ -115,45 +124,40 @@ class YaraAnalysis(ConfigurableAnalysisTask):
             #(stdout, stderr) = p.communicate()
             #sample.analysis['yara']['commit'] = stdout
 
-class HashAnalysis(AnalysisTask):
-    """Perform various hashing algorithms."""
-    def analyze(self, sample):
-        # sha256
-        m = hashlib.sha256()
-        m.update(sample.file_content)
-        sample.analysis['hashes']['sha256'] = m.hexdigest()
-
-        # ssdeep
-        p = Popen(['ssdeep', sample.content_path], stdout=PIPE)
-        (stdout, stderr) = p.communicate()
-        sample.analysis['hashes']['ssdeep'] = stdout
-
 class FileTypeAnalysis(AnalysisTask):
     """Use the file command to record what kind of file this might be."""
     def analyze(self, sample):
+
+        result = { 'file_types': [], 'mime_types': [] }
+
         p = Popen(['file', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
 
         # example file command output:
         # putty.exe: PE32 executable (GUI) Intel 80386, for MS Windows
         # so len(file_name) + 2 (: + space)
-        sample.analysis['file_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
+        result['file_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
 
         # same thing but for the mime type
         p = Popen(['file', '-i', sample.analysis['storage']], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        sample.analysis['mime_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
+        result['mime_types'].append(stdoutdata[len(sample.analysis['storage']) + 2:].strip())
+
+        return result
 
 class StringAnalysis(AnalysisTask):
     def analyze(self, sample):
         """Extract ASCII and "wide" (Unicode) strings."""
+        result = { 'ascii': [], 'unicode': [] }
         p = Popen(['strings', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        sample.analysis['strings']['ascii'] = stdoutdata.split('\n')
+        result['ascii'] = stdoutdata.split('\n')
 
         p = Popen(['strings', '-e', 'l', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
-        sample.analysis['strings']['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
+        result['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
+
+        return result
 
 class PEAnalysis(AnalysisTask):
     """Parse the PE sections of the file."""
@@ -163,7 +167,9 @@ class PEAnalysis(AnalysisTask):
             self.exe =  pefile.PE(sample.content_path, fast_load=True)
         except Exception, e:
             logging.debug("pefile.PE failed: {0}".format(str(e)))
-            return
+            return { }
+
+        result = { }
 
         # call each of these analysis methods
         for analysis_method in [ 
@@ -173,13 +179,14 @@ class PEAnalysis(AnalysisTask):
             self._pe_process_imphash ]:
 
             try:
-                analysis_method(sample)
+                analysis_method(sample, result)
             except Exception, e:
                 logging.error("{0} failed: {1}".format(analysis_method.__name__, str(e)))
                 traceback.print_exc()
-        
 
-    def _pe_process_sections(self, sample):
+        return result
+
+    def _pe_process_sections(self, sample, result):
 
         # logic for the pesections
         sections = []
@@ -191,11 +198,11 @@ class PEAnalysis(AnalysisTask):
             s['raw_size'] = section.SizeOfRawData
             sections.append(s)
 
-        sample.analysis['sections'] = sections
+        result['sections'] = sections
 
-    def _pe_process_imports(self, sample):
+    def _pe_process_imports(self, sample, result):
         """logic to calculate imports"""
-        sample.analysis['imports'] = []
+        result['imports'] = []
         imports = []
         for entry in self.exe.DIRECTORY_ENTRY_IMPORT:
             i = {}
@@ -203,20 +210,20 @@ class PEAnalysis(AnalysisTask):
             for imp in entry.imports:
                 i['address'] = hex(imp.address)
                 i['import_name'] = imp.name 
-                sample.analysis['imports'].append(i)
+                result['imports'].append(i)
 
-    def _pe_process_exports(self, sample):
+    def _pe_process_exports(self, sample, result):
         """logic to calculate exports"""
-        sample.analysis['exports'] = []
+        result['exports'] = []
         imports = []
         for entry in self.exe.DIRECTORY_ENTRY_EXPORT.symbols:
             i = {}
             i['name'] = entry.name
             i['address'] = hex(self.exe.OPTIONAL_HEADER.ImageBase + entry.address)
             i['ordinal'] = entry.ordinal
-            sample.analysis['exports'].append(i)
+            result['exports'].append(i)
 
-    def _pe_process_pehash(self, sample):
+    def _pe_process_pehash(self, sample, result):
 
         #
         # compute pehash
@@ -298,10 +305,10 @@ class PEAnalysis(AnalysisTask):
         m = hashlib.sha1()
         m.update(pehash_bin.tobytes())
 
-        sample.analysis['hashes']['pehash'] = m.hexdigest()
+        result['pehash'] = m.hexdigest()
 
-    def _pe_process_imphash(self, sample):
-        sample.analysis['hashes']['imphash'] = self.exe.get_imphash()
+    def _pe_process_imphash(self, sample, result):
+        result['imphash'] = self.exe.get_imphash()
 
 class ZlibAnalysis(AnalysisTask):
     """Perform a brute force zlib decompression attempt against every byte in the file."""
@@ -377,7 +384,7 @@ class ZlibAnalysis(AnalysisTask):
                     del c['content']
                     c['content_path'] = content_path
 
-            sample.analysis['zlib_blocks'] = self.decompressed_chunks
+            return { 'blocks':  self.decompressed_chunks }
 
 class CuckooAnalysis(ConfigurableAnalysisTask):
     """Execute the file in the configured cuckoo environment."""
@@ -396,17 +403,17 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         self.base_url = self.config['base_url']
         self.autosubmit = self.config['autosubmit']
 
-    def _refresh_analysis(self, sample):
+    def _get_analysis(self, sample):
         """Loads (or refreshes) the cuckoo analysis for the given sample."""
 
-        sample.analysis['behavior'] = [] 
+        result = { 'analysis': [] }
 
         try:
             r = requests.get('{0}/files/view/md5/{1}'.format(self.base_url, sample.md5_hash))
         except Exception, e:
             logging.error("requests.get() called failed: {0}".format(sample))
             traceback.print_exc()
-            return
+            return result
 
         if r.status_code == 200:
             logging.debug("analysis available for {0}".format(sample))
@@ -431,7 +438,7 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
                             # we're only going to record a subset of the information    
                             # TODO query for the config of the machine that executed and filter out the 
                             # TODO traffic generated by the reporting
-                            sample.analysis['behavior'].append({
+                            result['analysis'].append({
                                 'sandbox_name': 'cuckoo',
                                 'sandbox_version': report['info']['version'],
                                 'image_name': report['info']['machine'], # TODO this may not be working
@@ -444,7 +451,9 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
             else:
                 logging.error("query for task list returned {0}".format(r.status_code))
 
-            logging.debug("received {0} reports for sample {1}".format(len(sample.analysis['behavior']), sample))
+            logging.debug("received {0} reports for sample {1}".format(len(result['analysis']), sample))
+
+        return result
 
     def _submit(self, sample):
         """Submits a sample to the cuckoo server for analysis, waits for the results."""
@@ -454,7 +463,10 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         target_machines = []
         for machine in self.config['mapping'].keys():
             for mime_type in self.config['mapping'][machine]['mime_types']:
-                if any([mime_type in x for x in sample.analysis['mime_types']]):
+                # XXX see if there is a way to get rid of hard coded module name
+                file_type_analysis = sample.get_analysis('FileTypeAnalysis')
+                assert file_type_analysis is not None
+                if any([mime_type in x for x in file_type_analysis['details']['mime_types']]):
                     logging.debug("found machine {0} for mime_type {1}".format(machine, mime_type))
                     target_machines.append(machine)
 
@@ -522,9 +534,9 @@ sample, machine, str(r)))
     def analyze(self, sample):
         """Attempt to download existing cuckoo analysis, or submit the sample for analysis."""
 
-        self._refresh_analysis(sample)
-        if len(sample.analysis['behavior']) < 1:
+        result = self._get_analysis(sample)
+        if len(result['analysis']) < 1:
             # are we subumitting new samples to the sandbox?
             if self.config['autosubmit']:
                 self._submit(sample)
-                self._refresh_analysis(sample)
+                return self._get_analysis(sample)

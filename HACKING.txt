@@ -1,15 +1,14 @@
-HOW TO GUIDE
+HACKING GUIDE
 
-HOW TO START MWZOO
+HOW TO START HTTP SERVER
 ==============================================================================
 jdavison@vm:~/projects/mwzoo$ ./mwzoo.py
-starting mwzoo web services
+[2014-07-16 13:22:38,468] [mwzoo.py:42] [MainThread] [INFO] - starting malware zoo http server
 
 HOW TO SUBMIT A NEW SAMPLE
 ==============================================================================
 jdavison@vm:~/projects/mwzoo$ rm -rf malware/* && rm -rf scans/* && ./submit.py -f notepad.exe
 malware/a25/a25534d24de08c18a9a0b6ba0a2ac41575260524
-
 
 HOW TO QUERY THE ZOO
 ==============================================================================
@@ -32,14 +31,13 @@ temp/notepad.exe
 PROGRAM EXECUTION FLOW
 #1) MalwareZoo starts as the XMLRPC server
 #2) file uploads are passwd to FileUploadHandler
-#3) a new Sample is created and .save() kicks off the process
-#4) Sample.process_sample calls the various analysis tasks
-#5) results are saved to file and mongodb
+#3) a new Sample is created and .process() does all the work
+#4) results are saved to file and mongodb
 
 HOW TO ADD A NEW ANALYSIS TASK (analysis/tasks.py)
 #1) derive a new class from AnalysisTask (or ConfigurableAnalysisTask)
 #2) if you want it to have configuration options, derive from ConfigurableAnalysisTask and create a etc/analysis/YOUR_CLASS_NAME.ini file
 #2a) note that there is an option for loading JSON files as the configuration as well
-#3) override the analyze method which receives a reference to the Sample objectk, and a dict() called analysis, which is what goes into mongodb
-#4) do your analysis, store the results somewhere in the dict()
-#5) if you need to store binary data somewhere, see the YaraAnalysis task as an example
+#3) override the analyze method which receives a reference to the Sample object and returns a dict() that contains the results of the analysis in any format you want
+#3a) the results of the analysis are stored in { 'analysis' [ { 'details' : YOUR_DICT_HERE } ] }
+#4) if you need to store binary data somewhere, see the YaraAnalysis task as an example

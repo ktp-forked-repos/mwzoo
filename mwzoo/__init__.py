@@ -13,6 +13,8 @@ import logging, logging.config
 import traceback
 import ConfigParser
 import re
+import datetime
+from subprocess import Popen, PIPE
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -73,6 +75,7 @@ class Database(object):
         return self._client
 
 class Sample(object):
+    """Represents a sample file to be analyzed."""
     def __init__(self, file_name, file_content, tags, sources):
         self.file_name = file_name
         self.file_content = file_content
@@ -87,8 +90,13 @@ class Sample(object):
         m.update(self.file_content)
         self.md5_hash = m.hexdigest()
 
+        m = hashlib.sha256()
+        m.update(self.file_content)
+        self.analysis['hashes']['sha256'] = m.hexdigest()
+
         # calculate file storage
-        sub_dir = os.path.join(global_config.get('storage', 'malware_storage_dir'), self.sha1_hash[0:3])
+        sub_dir = os.path.join(global_config.get(
+            'storage', 'malware_storage_dir'), self.sha1_hash[0:3])
 
         self.content_path = os.path.join(sub_dir, self.sha1_hash)
         self.analysis['names'] = [ self.file_name ]
@@ -150,6 +158,14 @@ class Sample(object):
         assert isinstance(value, list)
         self.analysis['sources'] = value
 
+    def get_analysis(self, module):
+        """Get an analysis result for a given module, or None if analysis does not exist."""
+        for analysis in self.analysis['analysis']:
+            if module == analysis['module']:
+                return analysis
+
+        return None
+
     def __str__(self):
         return "Sample({0})".format(self.sha1_hash)
 
@@ -158,94 +174,131 @@ class Sample(object):
         return {
             'storage': None,
             'names': [ ] ,
-            'mime_types' : [ ], # file -i
-            'file_types' : [ ], # file
+            'sources': [],    # where did this file come from?
+            'tags': [],
             'hashes': {
                 'md5': None,
                 'sha1': None,
-                'sha256': None,
-                'pehash': None,
-                'imphash': None,
-                'ssdeep': None
+                'sha256': None
             },
-            'strings': {
-                'unicode': [],
-                'ascii': []
-            },
-            'imports': [ 
+            'analysis': [
                 #{
-                    #'module': string,
-                    #function_name: string,
-                    #ord: int
-                #} 
-            ],
-            'sections': [ 
+                    #'module': 'string',
+                    #'date': 'some date time',
+                    #'details': {
+                        #'unicode': [],
+                        #'ascii': []
+                    #}
+                #},
                 #{
-                    #name: string
-                    #md5 : string
-                    #rva: int
-                    #raw_sz: int
-                    #virtual_sz: int
-                #} ]
-            ],
-            'exports': [ 
+                    #'module': 'file_type',
+                    #'date': 'some date time',
+                    #'details': {
+                        #'mime_types' : [ ], # file -i
+                        #'file_types' : [ ], # file
+                    #}
+                #},
                 #{
-                    #function_name: string
-                    #ord: int
-                #} ]
-            ],
-            'packers': [],
-            'street_names': [
+                    #'module', 'executable',
+                    #'date', 'some date time',
+                    #'details': {
+                        #'imports': [ 
+                            #{
+                                #'module': string,
+                                #function_name: string,
+                                #ord: int
+                            #} 
+                        #],
+                        #'sections': [ 
+                            #{
+                                #name: string
+                                #md5 : string
+                                #rva: int
+                                #raw_sz: int
+                                #virtual_sz: int
+                            #} ]
+                        #],
+                        #'exports': [ 
+                            #{
+                                #function_name: string
+                                #ord: int
+                            #} ]
+                        #],
+                        #'packers': [],
+                        #'pe_header': {
+                            #'machine_build': None,
+                            #'number_of_sections': None,
+                            #'time_date_stamp': None,
+                            #'pointer_to_symbol_table': None,
+                            #'number_of_symbols': None,
+                            #'size_of_optional_header': None,
+                            #'characteristics': None,
+                            #'optional_header': {
+                                #'magic': None,
+                                #'linker_version': None,
+                                #'size_of_code': None,
+                            #},
+                        #},
+                    #}
+                #},
                 #{
-                    #vendor: {}
-                    #streetname: {}
-                #}]
-            ],
-            'pe_header': {
-                'machine_build': None,
-                'number_of_sections': None,
-                'time_date_stamp': None,
-                'pointer_to_symbol_table': None,
-                'number_of_symbols': None,
-                'size_of_optional_header': None,
-                'characteristics': None,
-                'optional_header': {
-                    'magic': None,
-                    'linker_version': None,
-                    'size_of_code': None,
-                },
-            },
-            'tags': [],
-            'behavior': [
+                    #'module', 'cuckoo',
+                    #'date', 'some date time',
+                    #'details': {
+                        #'analysis': [
+                        ##{
+                            ##sandbox_name: {}    // ex cuckoo
+                            ##sandbox_version: {} // ex 1.0.0
+                            ##image_name: {}      // ex windows 7 32
+                            ##c2: []          
+                            ##mutexes: []
+                            ##files_created: []
+                            ##files_modified: []
+                            ##files_deleted: []
+                            ##registry_created: []
+                            ##registry_modified: []
+                            ##registry_deleted: []
+                        ##}
+                        #]
+                    #}
+                #},
                 #{
-                    #sandbox_name: {}    // ex cuckoo
-                    #sandbox_version: {} // ex 1.0.0
-                    #image_name: {}      // ex windows 7 32
-                    #c2: []          
-                    #mutexes: []
-                    #files_created: []
-                    #files_modified: []
-                    #files_deleted: []
-                    #registry_created: []
-                    #registry_modified: []
-                    #registry_deleted: []
-                #]}
-            ],
-            'yara': {
-                'repository': None,     # git remote -v
-                'commit': None,         # git log -n 1 --pretty=oneline
-                'stdout_path': None,    # yara stdout file path
-                'stderr_path': None     # yara stderr file path
-            },
-            'exifdata': {},
-            'sources': [],    # where did this file come from?
-            'zlib_blocks': [
+                    #'module', 'yara',
+                    #'date', 'some date time',
+                    #'details': {
+                        #'repository': None,     # git remote -v
+                        #'commit': None,         # git log -n 1 --pretty=oneline
+                        #'stdout_path': None,    # yara stdout file path
+                        #'stderr_path': None     # yara stderr file path
+                    #}
+                #},
                 #{
-                    #offset: int            // offset of the location in the file
-                    #content_path: string   // location of the data
+                    #'module', 'zlib_blocks',
+                    #'date', 'some date time',
+                    #'details': {
+                        #'blocks': [
+                            ##{
+                                ##offset: int            // offset of the location in the file
+                                ##content_path: string   // location of the data
+                            ##}
+                        #]
+                    #}
+                #},
+                #{
+                    #'module', 'exifdata',
+                    #'date', 'some date time',
+                    #'details': {
+#
+                    #}
+                #},
+                #{
+                    #'module', 'virustotal',
+                    #'date', 'some date time'
+                    #'details': {
+#
+                    #}
                 #}
             ]
-
         }
 
     def _save_content(self):
@@ -291,7 +344,7 @@ class Sample(object):
     def _analyze(self):
         # TODO use some kind of plugin architecture
         for task in [ 
-            mwzoo_tasks.HashAnalysis(),
+            mwzoo_tasks.SsdeepAnalysis(),
             mwzoo_tasks.YaraAnalysis(),
             mwzoo_tasks.FileTypeAnalysis(),
             mwzoo_tasks.StringAnalysis(),
@@ -301,7 +354,13 @@ class Sample(object):
     
         ]:
             try:
-                task.analyze(self)
+                result = task.analyze(self)
+                self.analysis['analysis'].append({
+                    'module': task.__class__.__name__,
+                    'date': datetime.datetime.now(),
+                    'details': result
+                })
+                    
             except Exception, e:
                 logging.error("analysis task {0} failed: {1}".format(
                     analysis.__class__.__name__, 
