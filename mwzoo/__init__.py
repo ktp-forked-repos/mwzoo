@@ -342,7 +342,10 @@ class Sample(object):
             #self.analysis['names'].append(self.file_name)
         # create a new analysis for this sample
 
-    def _analyze(self):
+    def _load_analysis_tasks(self):
+        """
+Loads available anaysis tasks and sorts in order of dependencies.  
+Returns the list of tasks as callables."""
         # load available analysis tasks
         tasks = []
         for (name, task_class) in inspect.getmembers(mwzoo_tasks):
@@ -384,8 +387,11 @@ class Sample(object):
                 index = 0
             else:
                 index += 1
-            
-        for task in tasks:
+
+        return tasks
+        
+    def _analyze(self):
+        for task in self._load_analysis_tasks():
             try:
                 result = task.analyze(self)
                 self.analysis['analysis'].append({

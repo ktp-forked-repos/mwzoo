@@ -237,3 +237,19 @@ class sample_test(unittest.TestCase):
         """Test the core analysis call."""
         self._clear_database()
         self.sample.process()
+
+    def test_module_loading(self):
+        """Test loading of modules."""
+        tasks = self.sample._load_analysis_tasks()
+        assert len(tasks) > 0
+        for task in tasks:
+            assert isinstance(task, mwzoo.analysis.tasks.AnalysisTask)
+
+    # TODO need to figure this one out
+    #@raises(Exception)
+    #def test_module_circular_dependency(self):
+        #"""Test circular dependency detection in analysis task loading."""
+        #from mwzoo.analysis.tasks import AnalysisTask
+        #class mwzoo.analysis.tasks.TestClassA(AnalysisTask):
+            #def analyze(self, sample):
+                #pass
