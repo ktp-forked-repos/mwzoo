@@ -15,6 +15,7 @@ import traceback
 import ConfigParser
 import time
 import json
+import requests
 
 # PE parsing stuff
 import pefile
@@ -84,7 +85,7 @@ class YaraAnalysis(ConfigurableAnalysisTask):
         args.extend(self.config.get('global', 'yara_options').split())
         args.append(self.config.get('global', 'yara_rules'))
 
-        storage_dir = os.path.join(sample.storage_container_dir, self.config.get('global', 'output_dir'))
+        storage_dir = os.path.join(sample.storage_path, self.config.get('global', 'output_dir'))
         os.makedirs(storage_dir)
 
         stdout_path = os.path.join(storage_dir, sample.analysis['hashes']['sha1'] + '.stdout')
@@ -117,28 +118,20 @@ class YaraAnalysis(ConfigurableAnalysisTask):
 class HashAnalysis(AnalysisTask):
     """Perform various hashing algorithms."""
     def analyze(self, sample):
-        with open(sample.analysis['storage'], 'rb') as fp:
-            content = fp.read()
-
-        # md5
-        m = hashlib.md5()
-        m.update(content)
-        sample.analysis['hashes']['md5'] = m.hexdigest()
-
         # sha256
         m = hashlib.sha256()
-        m.update(content)
+        m.update(sample.file_content)
         sample.analysis['hashes']['sha256'] = m.hexdigest()
 
         # ssdeep
-        p = Popen(['ssdeep', sample.analysis['storage']], stdout=PIPE)
+        p = Popen(['ssdeep', sample.content_path], stdout=PIPE)
         (stdout, stderr) = p.communicate()
         sample.analysis['hashes']['ssdeep'] = stdout
 
 class FileTypeAnalysis(AnalysisTask):
     """Use the file command to record what kind of file this might be."""
     def analyze(self, sample):
-        p = Popen(['file', sample.analysis['storage']], stdout=PIPE)
+        p = Popen(['file', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
 
         # example file command output:
@@ -154,11 +147,11 @@ class FileTypeAnalysis(AnalysisTask):
 class StringAnalysis(AnalysisTask):
     def analyze(self, sample):
         """Extract ASCII and "wide" (Unicode) strings."""
-        p = Popen(['strings', sample.analysis['storage']], stdout=PIPE)
+        p = Popen(['strings', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
         sample.analysis['strings']['ascii'] = stdoutdata.split('\n')
 
-        p = Popen(['strings', '-e', 'l', sample.analysis['storage']], stdout=PIPE)
+        p = Popen(['strings', '-e', 'l', sample.content_path], stdout=PIPE)
         (stdoutdata, stderrdata) = p.communicate()
         sample.analysis['strings']['unicode'] = stdoutdata.split('\n') # <-- XXX spliting Unicode string with ASCII string
 
@@ -167,7 +160,7 @@ class PEAnalysis(AnalysisTask):
 
     def analyze(self, sample):
         try:
-            self.exe =  pefile.PE(sample.analysis['storage'], fast_load=True)
+            self.exe =  pefile.PE(sample.content_path, fast_load=True)
         except Exception, e:
             logging.debug("pefile.PE failed: {0}".format(str(e)))
             return
@@ -334,7 +327,7 @@ class ZlibAnalysis(AnalysisTask):
         self.offset = None
     
     def analyze(self, sample):
-        with open(sample.analysis['storage'], 'rb') as fp:
+        with open(sample.content_path, 'rb') as fp:
             while True:
                 byte = fp.read(1)
                 # EOF?
@@ -369,7 +362,7 @@ class ZlibAnalysis(AnalysisTask):
 
         if len(self.decompressed_chunks) > 0:
             # store the chunks into the file system
-            storage_dir = os.path.join(sample.storage_container_dir, 'zlib_blocks')
+            storage_dir = os.path.join(sample.storage_path, 'zlib_blocks')
             os.makedirs(storage_dir)
 
             for c in self.decompressed_chunks:
@@ -386,7 +379,6 @@ class ZlibAnalysis(AnalysisTask):
 
             sample.analysis['zlib_blocks'] = self.decompressed_chunks
 
-import requests, json
 class CuckooAnalysis(ConfigurableAnalysisTask):
     """Execute the file in the configured cuckoo environment."""
     
@@ -407,18 +399,17 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
     def _refresh_analysis(self, sample):
         """Loads (or refreshes) the cuckoo analysis for the given sample."""
 
-        md5_hash = sample.analysis['hashes']['md5']
         sample.analysis['behavior'] = [] 
 
         try:
-            r = requests.get('{0}/files/view/md5/{1}'.format(self.base_url, md5_hash))
+            r = requests.get('{0}/files/view/md5/{1}'.format(self.base_url, sample.md5_hash))
         except Exception, e:
-            logging.error("requests.get() called failed: {0}".format(md5_hash))
+            logging.error("requests.get() called failed: {0}".format(sample))
             traceback.print_exc()
             return
 
         if r.status_code == 200:
-            logging.debug("analysis available for {0}".format(md5_hash))
+            logging.debug("analysis available for {0}".format(sample))
             file_info = r.json()
             sample_id = file_info['sample']['id']
 
@@ -453,12 +444,10 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
             else:
                 logging.error("query for task list returned {0}".format(r.status_code))
 
-            logging.debug("received {0} reports for sample {1}".format(len(sample.analysis['behavior']), md5_hash))
+            logging.debug("received {0} reports for sample {1}".format(len(sample.analysis['behavior']), sample))
 
     def _submit(self, sample):
         """Submits a sample to the cuckoo server for analysis, waits for the results."""
-
-        md5_hash = sample.analysis['hashes']['md5']
 
         # determine what machine to use based on the analysis performed by the FileType analysis module
         # TODO only using mime_types at this point, expand to others
@@ -475,8 +464,8 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
 
         task_ids = []
         for machine in target_machines:
-            logging.info("submitting sample {0} to machine {1}".format(md5_hash, machine))
-            with open(sample.analysis['storage'], 'rb') as fp:
+            logging.info("submitting sample {0} to machine {1}".format(sample.md5_hash, machine))
+            with open(sample.content_path, 'rb') as fp:
                 files = { 
                     'file': ( sample.analysis['names'][0], fp ),
                     'machine': machine
@@ -486,7 +475,7 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
                 if r.status_code != 200:
                     logging.error(
 "unable to submit sample {0} to machine {1}: {2}".format(
-md5_hash, machine, str(r)))
+sample, machine, str(r)))
                     return
 
                 r = r.json()

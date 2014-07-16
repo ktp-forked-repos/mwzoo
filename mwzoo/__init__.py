@@ -77,7 +77,6 @@ class Sample(object):
         self.file_name = file_name
         self.file_content = file_content
         self.analysis = self._generate_empty_analysis()
-        self.storage_container_dir = None
 
         # go ahead and calculate hashes
         m = hashlib.sha1()
@@ -91,8 +90,7 @@ class Sample(object):
         # calculate file storage
         sub_dir = os.path.join(global_config.get('storage', 'malware_storage_dir'), self.sha1_hash[0:3])
 
-        self.storage_path = os.path.join(sub_dir, self.sha1_hash)
-        self.storage_container_dir = '{0}-data'.format(self.storage_path)
+        self.content_path = os.path.join(sub_dir, self.sha1_hash)
         self.analysis['names'] = [ self.file_name ]
         self.tags = tags
         self.sources = sources
@@ -120,13 +118,19 @@ class Sample(object):
         self.analysis['hashes']['md5'] = value
 
     @property
-    def storage_path(self):
+    def content_path(self):
+        """Path to the content of the sample stored in the file system."""
         return self.analysis['storage']
 
-    @storage_path.setter
-    def storage_path(self, value):
+    @content_path.setter
+    def content_path(self, value):
         assert isinstance(value, basestring)
         self.analysis['storage'] = value
+
+    @property
+    def storage_path(self):
+        """Path to directory set aside for storing extra data."""
+        return '{0}-data'.format(self.content_path)
 
     @property
     def tags(self):
@@ -248,24 +252,24 @@ class Sample(object):
         """Save the file content to file."""
 
         # have we already loaded this file?
-        if not os.path.exists(self.storage_path):
+        if not os.path.exists(self.content_path):
             # malware storage is storage_dir/sha1_hash[0:3]/sha1_hash
             # does this base directory exist?
-            if not os.path.exists(os.path.dirname(self.storage_path)):
-                os.makedirs(os.path.dirname(self.storage_path))
+            if not os.path.exists(os.path.dirname(self.content_path)):
+                os.makedirs(os.path.dirname(self.content_path))
 
-            logging.debug("saving sample to {0}".format(self.storage_path))
-            with open(self.storage_path, 'wb') as fp:
+            logging.debug("saving sample to {0}".format(self.content_path))
+            with open(self.content_path, 'wb') as fp:
                 fp.write(self.file_content)
 
         # make a spot for extra file storage for this sample
-        if not os.path.exists(self.storage_container_dir):
+        if not os.path.exists(self.storage_path):
             try:
-                os.makedirs(self.storage_container_dir)
+                os.makedirs(self.storage_path)
             except Exception, e:
                 logging.error(
 "unable to create storage container directory {0}: {1}".format(
-    self.storage_container_dir,
+    self.storage_path,
     str(e)))
 
     def _load_existing_analysis(self):
@@ -325,7 +329,7 @@ class Sample(object):
             logging.info("already analyzed {0}".format(self))
             # TODO merge stuff, redo analysis, etc...
 
-        return self.storage_path
+        return self.content_path
 
 
 class FileUploadHandler(xmlrpc.XMLRPC):

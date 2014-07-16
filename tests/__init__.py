@@ -193,6 +193,9 @@ class sample_test(unittest.TestCase):
         self.sample = mwzoo.Sample(
             self.file_name, self.file_content, self.tags, self.sources)
 
+    def _clear_database(self):
+        mwzoo.Database().collection.remove(None, multi=True)
+
     def tearDown(self):
         pass
 
@@ -206,12 +209,31 @@ class sample_test(unittest.TestCase):
 
         assert self.sample.sha1_hash is not None
         assert self.sample.md5_hash is not None
-        assert self.sample.storage_path is not None
+        assert self.sample.content_path is not None
         assert self.sample.analysis is not None
         assert isinstance(self.sample.analysis, dict)
 
-    #def test_save(self):
-        #"""Validate file submission."""
-        #self.sample._save_content()
-        #with open(self.
-        
+    def test_save_content(self):
+        """Testing saving file content."""
+        self.sample._save_content()
+        with open(self.sample.content_path, 'rb') as fp:
+            saved_content = fp.read()
+
+        assert saved_content == self.sample.file_content
+        assert os.path.exists(self.sample.storage_path)
+        assert os.path.isdir(self.sample.storage_path)
+
+    def test_analysis_database(self):
+        """Testing loading and saving analysis from database."""
+        self._clear_database()
+        self.sample._save_content()
+        result = self.sample._load_existing_analysis()
+        assert not result
+        self.sample._save_analysis()
+        result = self.sample._load_existing_analysis()
+        assert result
+
+    def test_analysis(self):
+        """Test the core analysis call."""
+        self._clear_database()
+        self.sample.process()
