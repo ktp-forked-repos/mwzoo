@@ -41,3 +41,9 @@ HOW TO ADD A NEW ANALYSIS TASK (analysis/tasks.py)
 #3) override the analyze method which receives a reference to the Sample object and returns a dict() that contains the results of the analysis in any format you want
 #3a) the results of the analysis are stored in { 'analysis' [ { 'details' : YOUR_DICT_HERE } ] }
 #4) if you need to store binary data somewhere, see the YaraAnalysis task as an example
+#5) if your analysis depends on the execution of another analysis module, add a depends_on attribute to your class with a list of all the modules it depends on
+
+example:
+
+        # file type analysis must be done
+        self.depends_on = [ FileTypeAnalysis ]

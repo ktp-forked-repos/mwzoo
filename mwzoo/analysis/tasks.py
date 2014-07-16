@@ -5,10 +5,7 @@
 # malware analysis tasks
 #
 
-from __future__ import absolute_import
 from subprocess import Popen, PIPE
-from mwzoo.analysis.celery import celery
-from celery import group, chord, chain
 import os, os.path
 import logging, logging.config
 import traceback
@@ -27,17 +24,15 @@ import hashlib
 import zlib
 
 #
-# Define each of your tasks here:
+# use this class as the base class for all analysis tasks
+# all analysis tasks are loaded dynamically at run time
+# if your task uses the analysis output of another task
+# then add an attribute called depends_on that is a list of the AnalysisTask-based objects that need to run
 #
-# @celery.task
-# def your_task(args, ...):
-#    your_results = {}
-#    your_results['a'] = do_thing_1()
-#    your_results['b'] = do_other_thing()
-#    do_another_task(your_results).si()
-#    ....
-#    return your_results # will not wait for subtask to finish
-#
+# example
+# 
+        # file type analysis must be done
+        # self.depends_on = [ FileTypeAnalysis ]
 
 class AnalysisTask(object):
     """Base class for all analysis tasks."""
@@ -127,6 +122,10 @@ class YaraAnalysis(ConfigurableAnalysisTask):
 
 class FileTypeAnalysis(AnalysisTask):
     """Use the file command to record what kind of file this might be."""
+    #def __init__(self):
+        #AnalysisTask.__init__(self)
+        #self.depends_on = [ CuckooAnalysis ]
+
     def analyze(self, sample):
 
         result = { 'file_types': [], 'mime_types': [] }
@@ -403,6 +402,9 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
 
         self.base_url = self.config['base_url']
         self.autosubmit = self.config['autosubmit']
+
+        # file type analysis must be done
+        self.depends_on = [ FileTypeAnalysis ]
 
     def _get_analysis(self, sample):
         """Loads (or refreshes) the cuckoo analysis for the given sample."""

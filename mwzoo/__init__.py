@@ -14,6 +14,7 @@ import traceback
 import ConfigParser
 import re
 import datetime
+import inspect
 from subprocess import Popen, PIPE
 
 # twisted
@@ -342,18 +343,49 @@ class Sample(object):
         # create a new analysis for this sample
 
     def _analyze(self):
-        # TODO use some kind of plugin architecture
-        for task in [ 
-            mwzoo_tasks.SsdeepAnalysis(),
-            mwzoo_tasks.YaraAnalysis(),
-            mwzoo_tasks.FileTypeAnalysis(),
-            mwzoo_tasks.StringAnalysis(),
-            mwzoo_tasks.PEAnalysis(),
-            mwzoo_tasks.ZlibAnalysis(),
-            mwzoo_tasks.CuckooAnalysis(),
-            mwzoo_tasks.ExifToolAnalysis()
-    
-        ]:
+        # load available analysis tasks
+        tasks = []
+        for (name, task_class) in inspect.getmembers(mwzoo_tasks):
+            if inspect.isclass(task_class) and task_class.__name__.endswith('Analysis'):
+                if callable(getattr(task_class, 'analyze', None)):
+                    logging.debug("found task {0}".format(task_class))
+                    tasks.append(task_class())
+
+        # sort by dependencies
+        index = 0
+        swapped = False # since python doens't have named loops
+        while index < len(tasks):
+            if hasattr(tasks[index], 'depends_on'):
+                for d_index in xrange(0, len(tasks[index].depends_on)):
+                    for target_index in xrange(0, len(tasks)):
+                        if index == target_index:
+                            continue
+                        if index > target_index:
+                            continue
+                        if tasks[target_index].__class__.__name__ == tasks[index].depends_on[d_index].__name__:
+                            # is there a circular dependency?
+                            if hasattr(tasks[target_index], 'depends_on') and type(tasks[index]) in tasks[target_index].depends_on:
+                                raise Exception("tasks {0} and {1} depend on each other".format(
+                                    tasks[index], tasks[target_index]))
+
+                            # swap their position
+                            logging.debug("swapping {0} with {1}".format(tasks[index], tasks[target_index]))
+                            tasks[index], tasks[target_index] = tasks[target_index], tasks[index]
+
+                            # sweep again
+                            swapped = True
+                            break
+
+                if swapped:
+                    break
+            
+            if swapped:
+                swapped = False
+                index = 0
+            else:
+                index += 1
+            
+        for task in tasks:
             try:
                 result = task.analyze(self)
                 self.analysis['analysis'].append({
