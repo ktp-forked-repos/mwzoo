@@ -16,6 +16,7 @@ import ConfigParser
 import time
 import json
 import requests
+import re
 
 # PE parsing stuff
 import pefile
@@ -542,3 +543,18 @@ sample, machine, str(r)))
                 result = self._get_analysis(sample)
 
         return result
+
+class ExifToolAnalysis(AnalysisTask):
+    """Record the output of the exiftool software."""
+    def analyze(self, sample):
+        result = {}
+        p = Popen(['exiftool', sample.content_path], stdout=PIPE, stderr=PIPE)
+        (stdout, stderr) = p.communicate()
+        for line in stdout.split('\n'):
+            m = re.match(r'^([^:]+):(.+)$', line)
+            if m:
+                (key, value) = m.groups()
+                key = key.strip()
+                value = value.strip()
+                logging.debug("exif tool key {0} value {1}".format(key, value))
+                result[key] = value

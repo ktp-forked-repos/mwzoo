@@ -23,6 +23,7 @@ Dependencies (required Ubuntu software packages)
  - rabbitmq-server
  - yara
  - ssdeep
+ - exiftool (http://www.sno.phy.queensu.ca/~phil/exiftool/)
 
 Architecture:
  - XMLRPC interface for interacting with the zoo (requires binary content to be base64 encoded)
