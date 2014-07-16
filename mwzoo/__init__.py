@@ -12,6 +12,7 @@ import base64
 import logging, logging.config
 import traceback
 import ConfigParser
+import re
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -62,153 +63,166 @@ class Sample(object):
         self.file_content = file_content
         self.tags = tags
         self.sources = sources
-        self.analysis = {}
+        self.analysis = self._generate_empty_analysis()
         self.storage_container_dir = None
 
-    def save(self):
-        """Saves a sample to the database, which begins processing on it.  
-            Returns the path to the file if the save was successfull or if the file was already uploaded."""
-
-        logging.info("adding sample {0}".format(self.file_name))
-        
-        # calculate the sha1 hash of the file
+        # go ahead and calculate hashes
         m = hashlib.sha1()
         m.update(self.file_content)
-        sha1_hash = m.hexdigest()
-        logging.debug("sample {0} has sha1_hash {1}".format(self.file_name, sha1_hash))
+        self.sha1_hash = m.hexdigest()
 
-        sub_dir = os.path.join(global_config.get('storage', 'malware_storage_dir'), sha1_hash[0:3])
-        if not os.path.exists(sub_dir):
-            os.mkdir(sub_dir)
+        m = hashlib.md5()
+        m.update(self.file_content)
+        self.md5_hash = m.hexdigest()
 
-        target_file = os.path.join(sub_dir, sha1_hash)
+        # calculate file storage
+        sub_dir = os.path.join(global_config.get('storage', 'malware_storage_dir'), self.sha1_hash[0:3])
+
+        self.storage_path = os.path.join(sub_dir, self.sha1_hash)
+        self.storage_container_dir = '{0}-data'.format(self.storage_path)
+        self.analysis['names'] = [ self.file_name ]
+
+    @property
+    def sha1_hash(self):
+        """SHA1 computed hash of the content."""
+        return self.analysis['hashes']['sha1']
+
+    @sha1_hash.setter
+    def sha1_hash(self, value):
+        assert re.match(r'^[0-9a-fA-F]{40}$', value) is not None
+        self.analysis['hashes']['sha1'] = value
+
+    @property
+    def md5_hash(self):
+        """MD5 computed hash of the content."""
+        return self.analysis['hashes']['md5']
+        
+    @md5_hash.setter
+    def md5_hash(self, value):
+        assert re.match(r'^[0-9a-fA-F]{32}$', value) is not None
+        self.analysis['hashes']['md5'] = value
+
+    @property
+    def storage_path(self):
+        return self.analysis['storage']
+
+    @storage_path.setter
+    def storage_path(self, value):
+        self.analysis['storage'] = value
+
+    def __str__(self):
+        return "Sample({0})".format(self.sha1_hash)
+
+    def _generate_empty_analysis(self):
+        """Return a Dictionary initialized with all the fields the MalwareZoo supports."""
+        return {
+            'storage': None,
+            'names': [ ] ,
+            'mime_types' : [ ], # file -i
+            'file_types' : [ ], # file
+            'hashes': {
+                'md5': None,
+                'sha1': None,
+                'sha256': None,
+                'pehash': None,
+                'imphash': None,
+                'ssdeep': None
+            },
+            'strings': {
+                'unicode': [],
+                'ascii': []
+            },
+            'imports': [ 
+                #{
+                    #'module': string,
+                    #function_name: string,
+                    #ord: int
+                #} 
+            ],
+            'sections': [ 
+                #{
+                    #name: string
+                    #md5 : string
+                    #rva: int
+                    #raw_sz: int
+                    #virtual_sz: int
+                #} ]
+            ],
+            'exports': [ 
+                #{
+                    #function_name: string
+                    #ord: int
+                #} ]
+            ],
+            'packers': [],
+            'street_names': [
+                #{
+                    #vendor: {}
+                    #streetname: {}
+                #}]
+            ],
+            'pe_header': {
+                'machine_build': None,
+                'number_of_sections': None,
+                'time_date_stamp': None,
+                'pointer_to_symbol_table': None,
+                'number_of_symbols': None,
+                'size_of_optional_header': None,
+                'characteristics': None,
+                'optional_header': {
+                    'magic': None,
+                    'linker_version': None,
+                    'size_of_code': None,
+                },
+            },
+            'tags': self.tags,
+            'behavior': [
+                #{
+                    #sandbox_name: {}    // ex cuckoo
+                    #sandbox_version: {} // ex 1.0.0
+                    #image_name: {}      // ex windows 7 32
+                    #c2: []          
+                    #mutexes: []
+                    #files_created: []
+                    #files_modified: []
+                    #files_deleted: []
+                    #registry_created: []
+                    #registry_modified: []
+                    #registry_deleted: []
+                #]}
+            ],
+            'yara': {
+                'repository': None,     # git remote -v
+                'commit': None,         # git log -n 1 --pretty=oneline
+                'stdout_path': None,    # yara stdout file path
+                'stderr_path': None     # yara stderr file path
+            },
+            'exifdata': {},
+            'sources': self.sources,    # where did this file come from?
+            'zlib_blocks': [
+                #{
+                    #offset: int            // offset of the location in the file
+                    #content_path: string   // location of the data
+                #}
+            ]
+
+        }
+
+    def _save_content(self):
+        """Save the file content to file."""
 
         # have we already loaded this file?
-        if not os.path.exists(target_file):
-            # save the file to disk
-            with open(target_file, 'wb') as fp:
+        if not os.path.exists(self.storage_path):
+            # malware storage is storage_dir/sha1_hash[0:3]/sha1_hash
+            # does this base directory exist?
+            if not os.path.exists(os.path.dirname(self.storage_path)):
+                os.makedirs(os.path.dirname(self.storage_path))
+
+            logging.debug("saving sample to {0}".format(self.storage_path))
+            with open(self.storage_path, 'wb') as fp:
                 fp.write(self.file_content)
-        else:
-            logging.debug("sample {0} already exists".format(sha1_hash))
-
-        # do we already have an analysis of this file?
-        db = Database()
-        self.analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
-
-        # have we seen this sample before?
-        if self.analysis is not None:
-            # have we seen this sample with this file name before?
-            if self.file_name not in self.analysis['names']:
-                logging.debug("appending file name {0} to sample {1}".format(self.file_name, sha1_hash))
-                self.analysis['names'].append(self.file_name)
-        else:
-            # create a new analysis for this sample
-            db.collection.insert({
-                'storage': target_file,
-                'names': [ self.file_name ] ,
-                'mime_types' : [ ], # file -i
-                'file_types' : [ ], # file
-                'hashes': {
-                    'md5': None,
-                    'sha1': sha1_hash,
-                    'sha256': None,
-                    'pehash': None,
-                    'imphash': None,
-                    'ssdeep': None
-                },
-                'strings': {
-                    'unicode': [],
-                    'ascii': []
-                },
-                'imports': [ 
-                    #{
-                        #'module': string,
-                        #function_name: string,
-                        #ord: int
-                    #} 
-                ],
-                'sections': [ 
-                    #{
-                        #name: string
-                        #md5 : string
-                        #rva: int
-                        #raw_sz: int
-                        #virtual_sz: int
-                    #} ]
-                ],
-                'exports': [ 
-                    #{
-                        #function_name: string
-                        #ord: int
-                    #} ]
-                ],
-                'packers': [],
-                'street_names': [
-                    #{
-                        #vendor: {}
-                        #streetname: {}
-                    #}]
-                ],
-                'pe_header': {
-                    'machine_build': None,
-                    'number_of_sections': None,
-                    'time_date_stamp': None,
-                    'pointer_to_symbol_table': None,
-                    'number_of_symbols': None,
-                    'size_of_optional_header': None,
-                    'characteristics': None,
-                    'optional_header': {
-                        'magic': None,
-                        'linker_version': None,
-                        'size_of_code': None,
-                    },
-                },
-                'tags': self.tags,
-                'behavior': [
-                    #{
-                        #sandbox_name: {}    // ex cuckoo
-                        #sandbox_version: {} // ex 1.0.0
-                        #image_name: {}      // ex windows 7 32
-                        #c2: []          
-                        #mutexes: []
-                        #files_created: []
-                        #files_modified: []
-                        #files_deleted: []
-                        #registry_created: []
-                        #registry_modified: []
-                        #registry_deleted: []
-                    #]}
-                ],
-                'yara': {
-                    'repository': None,     # git remote -v
-                    'commit': None,         # git log -n 1 --pretty=oneline
-                    'stdout_path': None,    # yara stdout file path
-                    'stderr_path': None     # yara stderr file path
-                },
-                'exifdata': {},
-                'sources': self.sources,    # where did this file come from?
-                'zlib_blocks': [
-                    #{
-                        #offset: int            // offset of the location in the file
-                        #content_path: string   // location of the data
-                    #}
-                ]
-            })
-
-            # then get it back out
-            self.analysis = db.collection.find_one({'hashes.sha1': sha1_hash})
-
-        #
-        # (eventually use celery to distribute the tasks)
-        #
-
-        # TODO limit the total number of concurrent processes
-        # tried to use a Pool but couldn't get it to work
-        #p = Process(target=self.process_sample, args=(analysis,))
-        #p.start()
 
         # make a spot for extra file storage for this sample
-        self.storage_container_dir = target_file + "-data"
         if not os.path.exists(self.storage_container_dir):
             try:
                 os.makedirs(self.storage_container_dir)
@@ -218,11 +232,24 @@ class Sample(object):
     self.storage_container_dir,
     str(e)))
 
-        self.process()
+    def _load_existing_analysis(self):
+        """Load existing analysis results from database or initialize a new entry."""
+        # do we already have an analysis of this file?
+        db = Database()
+        result = db.collection.find_one({'hashes.sha1': self.sha1_hash})
+        if result is not None:
+            self.analysis = result
+            return True
+        
+        return False
 
-        return target_file
+        #if self.file_name not in self.analysis['names']:
+            #logging.debug("appending file name {0} to sample {1}".format(self.file_name, sha1_hash))
+            #self.analysis['names'].append(self.file_name)
+        # create a new analysis for this sample
 
-    def process(self):
+    def _analyze(self):
+        # TODO use some kind of plugin architecture
         for task in [ 
             mwzoo_tasks.HashAnalysis(),
             mwzoo_tasks.YaraAnalysis(),
@@ -241,14 +268,34 @@ class Sample(object):
                     str(e)))
                 traceback.print_exc()
 
-        # save the results to the database!
+    def _save_analysis(self):
+        """Save the results of the analysis to the database."""
         db = Database()
-        db.collection.save(self.analysis)
+        db.collection.save(self.analysis, manipulate=True)
+
+    def process(self):
+        """Processes a sample which analyzes the sample and then saves all results to the database or file system.
+            Returns the path to the file if the save was successfull or if the file was already uploaded."""
+        #
+        # zooq ckane brobot
+        #
+
+        logging.info("processing sample {0}".format(self))
+        self._save_content()
+        if not self._load_existing_analysis():
+            self._analyze()
+            self._save_analysis()
+        else:
+            logging.info("already analyzed {0}".format(self))
+            # TODO merge stuff, redo analysis, etc...
+
+        return self.storage_path
+
 
 class FileUploadHandler(xmlrpc.XMLRPC):
     def xmlrpc_upload(self, file_name, file_content, tags, sources):
         """Upload the given contents and record the included metadata."""
-        return Sample(file_name, base64.b64decode(file_content), tags, sources).save()
+        return Sample(file_name, base64.b64decode(file_content), tags, sources).process()
         #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
 class MalwareZoo(resource.Resource):
