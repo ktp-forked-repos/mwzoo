@@ -539,4 +539,6 @@ sample, machine, str(r)))
             # are we subumitting new samples to the sandbox?
             if self.config['autosubmit']:
                 self._submit(sample)
-                return self._get_analysis(sample)
+                result = self._get_analysis(sample)
+
+        return result
