@@ -31,6 +31,21 @@ import mwzoo.analysis.tasks as mwzoo_tasks
 # global config
 global_config = None
 
+def load_global_config(config_path):
+    global global_config
+    global_config = ConfigParser.ConfigParser()
+
+    # make sure the configuration file exists
+    if not os.path.exists(config_path):
+        # inform the user about the default configuration available
+        if os.path.exists('etc/mwzoo_default.ini'):
+            logging.fatal(
+"*** HEY MAN *** A default configuration is available! " +  
+"Type (cd etc && ln -s mwzoo_default.ini mwzoo.ini) and try again!")
+        raise IOError("configuration file {0} does not exist".format(config_path))
+
+    global_config.read(config_path)
+
 class Database(object):
     def __init__(self):
         """Connects to the mongodb specified in the config file."""
@@ -319,25 +334,10 @@ class FileUploadHandler(xmlrpc.XMLRPC):
         return Sample(file_name, base64.b64decode(file_content), tags, sources).process()
         #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
 
-class MalwareZoo(resource.Resource):
+class HTTPServer(resource.Resource):
     def __init__(self):
         resource.Resource.__init__(self)
         self.putChild("upload", FileUploadHandler())
-
-    def load_global_config(self, config_path):
-        global global_config
-        global_config = ConfigParser.ConfigParser()
-
-        # make sure the configuration file exists
-        if not os.path.exists(config_path):
-            # inform the user about the default configuration available
-            if os.path.exists('etc/mwzoo_default.ini'):
-                logging.fatal(
-"*** HEY MAN *** A default configuration is available! " +  
-"Type (cd etc && ln -s mwzoo_default.ini mwzoo.ini) and try again!")
-            raise IOError("configuration file {0} does not exist".format(config_path))
-
-        global_config.read(config_path)
 
     def start(self):
         bind_host = global_config.get('networking', 'hostname')

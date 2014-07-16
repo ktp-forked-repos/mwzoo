@@ -1,6 +1,6 @@
 import mwzoo
 import sys
-import os
+import os, os.path
 from nose.tools import raises, timed
 import unittest
 import nose
@@ -8,6 +8,7 @@ from ConfigParser import ParsingError
 import atexit
 import xmlrpclib
 import time
+from subprocess import Popen
 
 VALID_CONFIG_PATH = 'tests/etc/valid_config.ini'
 INVALID_CONFIG_PATH = 'tests/etc/invalid_config.ini'
@@ -16,20 +17,29 @@ DEFAULT_CONFIG_PATH = 'etc/mwzoo_default.ini'
 TEST_CONFIG_PATH = 'etc/mwzoo_test.ini'
 
 def setup_package():
-    # load the test configuration
+    # if we don't specify a directory then we default to cwd
+    if 'MWZOO_HOME' not in os.environ:
+        os.environ['MWZOO_HOME'] = '.'
+
+    try:
+        os.chdir(os.environ['MWZOO_HOME'])
+    except Exception, e:
+        raise Exception(
+            "unable to change working directory to {0}: {1}".format(
+            os.environ['MWZOO_HOME']))
     
-    pass
+    # load the test configuration
+    mwzoo.load_global_config(TEST_CONFIG_PATH)
 
 def teardown_package():
     # delete the test mongodb
-    
     pass
 
 class config_test(unittest.TestCase):
     """Tests configuration files."""
 
     def setUp(self):
-        self.zoo = mwzoo.MalwareZoo()
+        pass
 
     def tearDown(self):
         pass
@@ -37,17 +47,17 @@ class config_test(unittest.TestCase):
     # basic configuration file tests
     def valid_configuration_test(self):
         """Tests that a valid configuration file is loaded."""
-        self.zoo.load_global_config(VALID_CONFIG_PATH)
+        mwzoo.load_global_config(VALID_CONFIG_PATH)
 
     @raises(IOError)
     def missing_configuration_test(self):
         """Specified configuration file does not exist."""
-        self.zoo.load_global_config(MISSING_CONFIG_PATH)
+        mwzoo.load_global_config(MISSING_CONFIG_PATH)
 
     @raises(ParsingError)
     def invalid_configuration_test(self):
         """Specified configuration file does not exist."""
-        self.zoo.load_global_config(INVALID_CONFIG_PATH)
+        mwzoo.load_global_config(INVALID_CONFIG_PATH)
 
     # tests the default configuration file that gets shipped with the pacakge
     # these are a bit redundant but require use to think about tests
@@ -55,7 +65,7 @@ class config_test(unittest.TestCase):
 
     def default_config_tests(self):
         """Default config has expected section names."""
-        self.zoo.load_global_config(DEFAULT_CONFIG_PATH)
+        mwzoo.load_global_config(DEFAULT_CONFIG_PATH)
         # test that these sections exist
         self.assertItemsEqual(mwzoo.global_config.sections(),
             [ 'networking', 'storage', 'mongodb', 'mysql' ])
@@ -82,20 +92,22 @@ class config_test(unittest.TestCase):
         assert mwzoo.global_config.get(
             'mysql', 'password', None) is not None
 
-class mwzoo_test(unittest.TestCase):
-    """Tests basic MalwareZoo functionality."""
+class http_server_test(unittest.TestCase):
+    """Tests basic http server functionality."""
 
     def setUp(self):
-        self.zoo = mwzoo.MalwareZoo()
-        self.zoo.load_global_config(TEST_CONFIG_PATH)
+        # load the test configuration
+        mwzoo.load_global_config(TEST_CONFIG_PATH)
+
+        self.http_server = mwzoo.HTTPServer()
 
         from multiprocessing import Process
-        self.zoo_process = Process(target=self._mwzoo_process)
-        self.zoo_process.daemon = True
-        self.zoo_process.start()
+        self.server_process = Process(target=self._server_process)
+        self.server_process.daemon = True
+        self.server_process.start()
 
-    def _mwzoo_process(self):
-        self.zoo.start()
+    def _server_process(self):
+        self.http_server.start()
 
     def tearDown(self):
         pass
@@ -124,8 +136,9 @@ class mwzoo_test(unittest.TestCase):
 
 class database_test(unittest.TestCase):
     def setUp(self):
-        self.zoo = mwzoo.MalwareZoo()
-        self.zoo.load_global_config(TEST_CONFIG_PATH)
+        # load the test configuration
+        mwzoo.load_global_config(TEST_CONFIG_PATH)
+
         self.db = mwzoo.Database()
 
     def connection_test(self):
@@ -167,33 +180,38 @@ class database_test(unittest.TestCase):
 class sample_test(unittest.TestCase):
     """Tests the Sample class."""
     def setUp(self):
-        pass
+        # load the test configuration
+        mwzoo.load_global_config(TEST_CONFIG_PATH)
+
+        # generate some random data for file content
+        with open('/dev/urandom', 'rb') as fp:
+            self.file_content = fp.read(1024)
+
+        self.file_name = 'sample.exe'
+        self.tags = ['tag1', 'tag2']
+        self.sources = ['source1', 'source2']
+        self.sample = mwzoo.Sample(
+            self.file_name, self.file_content, self.tags, self.sources)
 
     def tearDown(self):
         pass
 
-    def test_save(self):
-        """Validate file submission."""
-        with open('/dev/urandom', 'rb') as fp:
-            file_content = fp.read(1024)
-
-        file_name = 'sample.exe'
-        tags = ['tag1', 'tag2']
-        sources = ['source1', 'source2']
-
-        s = mwzoo.Sample(file_name, file_content, tags, sources)
-
+    def test_constructor(self):
+        """Validate Sample constructor."""
         # make sure properties are set
-        assert s.file_name == file_name
-        assert s.file_content == file_content
-        self.assertItemsEqual(s.tags, tags)
-        self.assertItemsEqual(s.sources, sources)
+        assert self.sample.file_name == self.file_name
+        assert self.sample.file_content == self.file_content
+        self.assertItemsEqual(self.sample.tags, self.tags)
+        self.assertItemsEqual(self.sample.sources, self.sources)
 
-        assert s.sha1_hash is not None
-        assert s.md5_hash is not None
-        assert s.storage_path is not None
-        assert s.analysis is not None
-        assert isinstance(s.analysis, dict)
+        assert self.sample.sha1_hash is not None
+        assert self.sample.md5_hash is not None
+        assert self.sample.storage_path is not None
+        assert self.sample.analysis is not None
+        assert isinstance(self.sample.analysis, dict)
 
-        #s.save()
+    #def test_save(self):
+        #"""Validate file submission."""
+        #self.sample._save_content()
+        #with open(self.
         

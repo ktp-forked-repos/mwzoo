@@ -4,7 +4,7 @@
 # malware zoo
 #
 
-from mwzoo import MalwareZoo
+import mwzoo
 import argparse
 import os
 import logging
@@ -37,7 +37,7 @@ except Exception, e:
 
 logging.config.fileConfig(args.logging_config_path)
 
-logging.info("starting malware zoo")
-malware_zoo = MalwareZoo()
-malware_zoo.load_global_config(args.config_path)
-malware_zoo.start()
+mwzoo.load_global_config(args.config_path)
+
+logging.info("starting malware zoo http server")
+mwzoo.HTTPServer().start()
