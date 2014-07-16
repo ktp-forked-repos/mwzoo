@@ -61,8 +61,6 @@ class Sample(object):
     def __init__(self, file_name, file_content, tags, sources):
         self.file_name = file_name
         self.file_content = file_content
-        self.tags = tags
-        self.sources = sources
         self.analysis = self._generate_empty_analysis()
         self.storage_container_dir = None
 
@@ -81,6 +79,8 @@ class Sample(object):
         self.storage_path = os.path.join(sub_dir, self.sha1_hash)
         self.storage_container_dir = '{0}-data'.format(self.storage_path)
         self.analysis['names'] = [ self.file_name ]
+        self.tags = tags
+        self.sources = sources
 
     @property
     def sha1_hash(self):
@@ -89,6 +89,7 @@ class Sample(object):
 
     @sha1_hash.setter
     def sha1_hash(self, value):
+        assert isinstance(value, basestring)
         assert re.match(r'^[0-9a-fA-F]{40}$', value) is not None
         self.analysis['hashes']['sha1'] = value
 
@@ -99,6 +100,7 @@ class Sample(object):
         
     @md5_hash.setter
     def md5_hash(self, value):
+        assert isinstance(value, basestring)
         assert re.match(r'^[0-9a-fA-F]{32}$', value) is not None
         self.analysis['hashes']['md5'] = value
 
@@ -108,7 +110,26 @@ class Sample(object):
 
     @storage_path.setter
     def storage_path(self, value):
+        assert isinstance(value, basestring)
         self.analysis['storage'] = value
+
+    @property
+    def tags(self):
+        return self.analysis['tags']
+
+    @tags.setter
+    def tags(self, value):
+        assert isinstance(value, list)
+        self.analysis['tags'] = value
+
+    @property
+    def sources(self):
+        return self.analysis['sources']
+
+    @sources.setter
+    def sources(self, value):
+        assert isinstance(value, list)
+        self.analysis['sources'] = value
 
     def __str__(self):
         return "Sample({0})".format(self.sha1_hash)
@@ -175,7 +196,7 @@ class Sample(object):
                     'size_of_code': None,
                 },
             },
-            'tags': self.tags,
+            'tags': [],
             'behavior': [
                 #{
                     #sandbox_name: {}    // ex cuckoo
@@ -198,7 +219,7 @@ class Sample(object):
                 'stderr_path': None     # yara stderr file path
             },
             'exifdata': {},
-            'sources': self.sources,    # where did this file come from?
+            'sources': [],    # where did this file come from?
             'zlib_blocks': [
                 #{
                     #offset: int            // offset of the location in the file

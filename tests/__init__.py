@@ -189,5 +189,11 @@ class sample_test(unittest.TestCase):
         self.assertItemsEqual(s.tags, tags)
         self.assertItemsEqual(s.sources, sources)
 
+        assert s.sha1_hash is not None
+        assert s.md5_hash is not None
+        assert s.storage_path is not None
+        assert s.analysis is not None
+        assert isinstance(s.analysis, dict)
+
         #s.save()
         
