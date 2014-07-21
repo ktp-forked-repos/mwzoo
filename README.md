@@ -19,8 +19,6 @@ Dependencies (required Ubuntu software packages)
  - nose (sudo -E pip install nose)
  - python-pymongo
  - mongodb-org (see bin/ubuntu_install_mongodb.sh)
- - python-celery
- - rabbitmq-server
  - yara
  - ssdeep
  - exiftool (http://www.sno.phy.queensu.ca/~phil/exiftool/)
