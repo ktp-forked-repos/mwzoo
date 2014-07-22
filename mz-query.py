@@ -88,7 +88,7 @@ if args.custom_output is not None:
     fields = json.loads('{"' + args.custom_output + '": true, "_id": false}')
 
 for sample in mwzoo.Database().collection.find(query, fields=fields):
-    if args.summary_output is not None:
+    if args.summary_output:
         print ','.join(sample['names'])
         print '\ttags: {0}'.format(','.join(sample['tags']))
         print '\tsources: {0}'.format(','.join(sample['sources']))
