@@ -3,11 +3,17 @@
 import argparse
 import os.path
 import shutil
-
-# mongo
-from pymongo import MongoClient
+import mwzoo
 
 parser = argparse.ArgumentParser(description='Malware Zoo Sample Query')
+
+# standard options TODO - refactor
+parser.add_argument(
+    '--mwzoo-home', action='store', dest='mwzoo_home', default=None, required=False,
+    help='Path to the base installation directory of the malware zoo.  This overrides MWZOO_HOME environment variable, if set.')
+parser.add_argument(
+    '-c', '--config-path', action='store', dest='config_path', default='etc/mwzoo.ini', required=False,
+    help='Path to configuration file for the malware zoo.')
 
 # storage options
 parser.add_argument(
@@ -43,12 +49,10 @@ parser.add_argument(
     '-s', '--source', action='store', dest='source', required=False, default=None,
     help="Query by source (regex pattern).")
 
+
 args = parser.parse_args()
 
-# query the database
-client = MongoClient()
-db = client['mwzoo']
-collection = db['analysis']
+mwzoo.load_global_config(args.config_path)
 
 query = {}
 if args.md5 is not None:
@@ -66,7 +70,7 @@ if args.tag is not None:
 if args.source is not None:
     query['sources'] = { '$regex': args.source }
 
-for sample in collection.find(query):
+for sample in mwzoo.Database().collection.find(query):
     if args.directory is not None:
         dest_file = os.path.join(args.directory, sample['names'][0])
         shutil.copyfile(sample['storage'], dest_file)
