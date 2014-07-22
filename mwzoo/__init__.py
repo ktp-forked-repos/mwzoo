@@ -40,12 +40,19 @@ def load_global_config(config_path):
 
     # make sure the configuration file exists
     if not os.path.exists(config_path):
-        # inform the user about the default configuration available
-        if os.path.exists('etc/mwzoo_default.ini'):
-            logging.fatal(
+        # what about relative from the MWZOO_HOME dir?
+        if (
+        not os.path.isabs(config_path)
+        and 'MWZOO_HOME' in os.environ 
+        and os.path.exists(os.path.join(os.environ['MWZOO_HOME'], config_path))):
+            config_path = os.path.join(os.environ['MWZOO_HOME'], config_path)
+        else:
+            # inform the user about the default configuration available
+            if os.path.exists('etc/mwzoo_default.ini'):
+                logging.fatal(
 "*** HEY MAN *** A default configuration is available! " +  
 "Type (cd etc && ln -s mwzoo_default.ini mwzoo.ini) and try again!")
-        raise IOError("configuration file {0} does not exist".format(config_path))
+            raise IOError("configuration file {0} does not exist".format(config_path))
 
     global_config.read(config_path)
 
