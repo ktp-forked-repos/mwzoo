@@ -10,10 +10,10 @@ parser.add_argument(
     '-f', '--input-file', action='store', dest='input_file', required=True,
     help='The file to upload to the zoo.')
 parser.add_argument(
-    '-t', '--tag', action='append', dest='tags', required=False, default=[],
+    '-t', '--tags', action='store', nargs="*", dest='tags', required=False, default=[],
     help='Add the given tags to the sample.')
 parser.add_argument(
-    '-s', '--source', action='append', dest='sources', required=False, default=[],
+    '-s', '--sources', action='store', nargs="*", dest='sources', required=False, default=[],
     help='Add the given sources to the sample.')
 #parser.add_argument(
     #'--add-new-tags', action='store_true', dest='add_new_tags', required=False, default=False,
