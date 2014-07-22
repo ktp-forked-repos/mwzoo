@@ -4,6 +4,7 @@ import argparse
 import os.path
 import shutil
 import mwzoo
+import json
 
 parser = argparse.ArgumentParser(description='Malware Zoo Sample Query')
 
@@ -49,6 +50,14 @@ parser.add_argument(
     '-s', '--source', action='store', dest='source', required=False, default=None,
     help="Query by source (regex pattern).")
 
+# output options
+parser.add_argument(
+    '-l', '--list-names', action='store_true', dest='list_names', required=False, default=False,
+    help="List the samples by their names.")
+
+parser.add_argument(
+    '--custom-output', action='store', dest='custom_output', required=False, default=None,
+    help="Schema projection.  Examples: hashes.sha1, sources, analysis.details.unicode")
 
 args = parser.parse_args()
 
@@ -70,10 +79,18 @@ if args.tag is not None:
 if args.source is not None:
     query['sources'] = { '$regex': args.source }
 
-for sample in mwzoo.Database().collection.find(query):
-    if args.directory is not None:
+fields = None
+if args.custom_output is not None:
+    fields = json.loads('{"' + args.custom_output + '": true, "_id": false}')
+
+for sample in mwzoo.Database().collection.find(query, fields=fields):
+    if args.custom_output is not None:
+        print sample
+    elif args.directory is not None:
         dest_file = os.path.join(args.directory, sample['names'][0])
         shutil.copyfile(sample['storage'], dest_file)
         print dest_file
-    else:
+    elif args.list_names:
         print ', '.join(sample['names'])
+    else:
+        print sample['hashes']['sha1']
