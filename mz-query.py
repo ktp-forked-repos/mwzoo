@@ -56,6 +56,10 @@ parser.add_argument(
     help="List the samples by their names.")
 
 parser.add_argument(
+    '-S', '--summary-output', action='store_true', dest='summary_output', required=False, default=False,
+    help="Display nice summary output.")
+
+parser.add_argument(
     '--custom-output', action='store', dest='custom_output', required=False, default=None,
     help="Schema projection.  Examples: hashes.sha1, sources, analysis.details.unicode")
 
@@ -84,8 +88,13 @@ if args.custom_output is not None:
     fields = json.loads('{"' + args.custom_output + '": true, "_id": false}')
 
 for sample in mwzoo.Database().collection.find(query, fields=fields):
-    if args.custom_output is not None:
-        print sample
+    if args.summary_output is not None:
+        print ','.join(sample['names'])
+        print '\ttags: {0}'.format(','.join(sample['tags']))
+        print '\tsources: {0}'.format(','.join(sample['sources']))
+        print '\tmd5: {0}'.format(sample['hashes']['md5'])
+        print '\tsha1: {0}'.format(sample['hashes']['sha1'])
+        print 
     elif args.directory is not None:
         dest_file = os.path.join(args.directory, sample['names'][0])
         shutil.copyfile(sample['storage'], dest_file)
