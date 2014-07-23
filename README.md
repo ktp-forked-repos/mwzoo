@@ -5,6 +5,7 @@ Upload malware samples, run a bunch of analysis, record the output, then make it
 all available for manual analysis or export to other tools.
 
 Installation
+```
     sudo apt-get install git python-twisted python-pip python-pefile python-pymongo yara ssdeep
     sudo pip install bitstring
     sudo pip install requests
@@ -20,11 +21,15 @@ Installation
     # the following works on Ubuntu 14.04 LTS
     sudo ln -s /opt/mwzoo/etc/profile.d/mwzoo.sh /etc/profile.d/mwzoo.sh
     source etc/profile.d/mwzoo.sh
+```
 
 Starting Malware Zoo
+```
     mwzoo.py
+```
 
 Using Malware Zoo
+```
     # upload a sample tagged with "zbot" and "downloader" with a source of "osint"
     mz-submit.py -f zbot.exe -t zbot -s osint
     # the mz-submit.py can be run from other systems
@@ -44,6 +49,7 @@ Using Malware Zoo
     mz-query.py -5 7a0dfc5353ff6de7de0208a29fa2ffc9 | mz-update --append -t rootkit --commit
     # get rid of all samples tagged as "b9"
     mz-query.py -t b9 | mq-update -D --commit
+```
 
 Currently Supported Analysis Tools and Techniques
  - ssdeep
