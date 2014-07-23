@@ -7,6 +7,9 @@ import base64
 
 parser = argparse.ArgumentParser(description='MalwareZoo File Submit')
 parser.add_argument(
+    '--remote-host', action='store', dest='remote_host', required=False, default='localhost:8081',
+    help="Remote address of Malware Zoo HTTP Server.  Can be specified as host:port")
+parser.add_argument(
     '-f', '--input-file', action='store', dest='input_file', required=True,
     help="The file to upload to the zoo.")
 parser.add_argument(
@@ -20,7 +23,7 @@ parser.add_argument(
     help="Set the file name manually (if different than the actual file name.)")
 args = parser.parse_args()
 
-s = xmlrpclib.Server('http://localhost:8081/upload')
+s = xmlrpclib.Server('http://{0}/upload'.format(args.remote_host))
 file_contents = None
 with open(args.input_file, 'rb') as fp:
     file_contents = fp.read()

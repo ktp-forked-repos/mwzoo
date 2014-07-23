@@ -8,7 +8,11 @@ from ConfigParser import ParsingError
 import atexit
 import xmlrpclib
 import time
-from subprocess import Popen
+from subprocess import Popen, PIPE
+import traceback
+import threading
+import tempfile
+import shutil
 
 VALID_CONFIG_PATH = 'tests/etc/valid_config.ini'
 INVALID_CONFIG_PATH = 'tests/etc/invalid_config.ini'
@@ -110,7 +114,8 @@ class http_server_test(unittest.TestCase):
         self.http_server.start()
 
     def tearDown(self):
-        pass
+        self.server_process.terminate()
+        self.server_process.join()
 
     def startup_test(self):
         """Ensure malware starts up and listens on the given port."""
@@ -253,3 +258,232 @@ class sample_test(unittest.TestCase):
         #class mwzoo.analysis.tasks.TestClassA(AnalysisTask):
             #def analyze(self, sample):
                 #pass
+
+class utility_test(unittest.TestCase):
+    """Tests the mz-*.py utilities."""
+    def setUp(self):
+        # load the test configuration
+        mwzoo.load_global_config(TEST_CONFIG_PATH)
+
+        self.zoo_process = None
+        self.zoo_stdout = ''
+        self.zoo_stdout_thread = None
+        self.zoo_stderr = ''
+        self.zoo_stderr_thread = None
+        self._clear_database()
+        self._start_malware_zoo()
+
+        self.zoo_started = threading.Event()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def _clear_database(self):
+        mwzoo.Database().collection.remove(None, multi=True)
+
+    def _start_malware_zoo(self):
+        # start the malware zoo server on the side
+        self.zoo_process = Popen(['python', 'mwzoo.py', '-c', 'etc/mwzoo_test.ini'], stdout=PIPE, stderr=PIPE)
+
+        self.zoo_stdout_thread = threading.Thread(target=self._read_zoo_stdout, name="_read_zoo_stdout")
+        self.zoo_stdout_thread.start()
+
+        self.zoo_stderr_thread = threading.Thread(target=self._read_zoo_stderr, name="_read_zoo_stderr")
+        self.zoo_stderr_thread.start()
+
+    # TODO refactor :)
+    def _read_zoo_stdout(self):
+        while True:
+            try:
+                line = self.zoo_process.stdout.readline()
+                if line == '':
+                    return
+
+                # watch for the http server to start
+                if 'started HTTPServer on' in line:
+                    self.zoo_started.set()
+
+                self.zoo_stdout += line
+                print "zoo stdout: {0}".format(line.strip())
+            except Exception, e:
+                traceback.print_exc()
+                return
+
+    def _read_zoo_stderr(self):
+        while True:
+            try:
+                line = self.zoo_process.stderr.readline()
+                if line == '':
+                    return
+
+                self.zoo_stderr += line
+                print "zoo stderr: {0}".format(line.strip())
+            except Exception, e:
+                traceback.print_exc()
+                return
+
+    def tearDown(self):
+        try:
+            if self.zoo_process is not None:
+                print "killing zoo process"
+                self.zoo_process.terminate()
+                self.zoo_process.wait()
+        except Exception, e:
+            traceback.print_exc()
+
+        if self.zoo_stdout_thread is not None:
+            print "waiting for zoo stdout thread..."
+            self.zoo_stdout_thread.join()
+
+        if self.zoo_stderr_thread is not None:
+            print "waiting for zoo stderr thread..."
+            self.zoo_stderr_thread.join()
+
+        shutil.rmtree(self.temp_dir)
+
+    def test_utilities(self):
+        # load the test configuration
+        mwzoo.load_global_config(TEST_CONFIG_PATH)
+
+        # wait for the http server to start
+        self.zoo_started.wait(5)
+
+        # submit the example file
+        submit_process = Popen([
+'python', 'mz-submit.py', '--remote-host', 'localhost:8082', 
+'-f', 'tests/data/HelloWorld.exe', 
+'-t', 'tag1', 'tag2', 
+'-s', 'source1', 'source2'], stdout=PIPE)
+        (stdout, stderr) = submit_process.communicate()
+        assert submit_process.returncode == 0
+        assert stdout.strip() == ".malware_test/3f8/3f896076056ef80ca508daf1317bbd22bd29de3e"
+
+        # test default output
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+        # expecting a single line of output
+        assert len(stdout.split('\n')) == 2 # technically two including the new line
+        # expecting sha1 hash
+        assert stdout.strip() == '3f896076056ef80ca508daf1317bbd22bd29de3e'
+
+        # test summary output
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-S'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+
+        # look for the sha1
+        assert '3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        # look for the md5
+        assert '5d2c773d17866b0135feda1ef50b573a' in stdout
+        # look for the two tags
+        assert 'tag1' in stdout
+        assert 'tag2' in stdout
+        # look for the two sources
+        assert 'source1' in stdout
+        assert 'source2' in stdout
+
+        # test file extraction
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-d', self.temp_dir], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+        assert stdout.strip() == os.path.join(self.temp_dir, 'HelloWorld.exe')
+        # make sure it pulled the right file
+        cmp_process = Popen(['cmp', os.path.join(self.temp_dir, 'HelloWorld.exe'), 'tests/data/HelloWorld.exe'])
+        cmp_process.wait()
+        assert cmp_process.returncode == 0
+
+        # test query by various criteria
+        for argument_configuration in [
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-5', '5d2c773d17866b0135feda1ef50b573a'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-1', '3f896076056ef80ca508daf1317bbd22bd29de3e'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-n', 'HelloWorld.exe'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-t', 'tag1'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-t', 'tag2'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-s', 'source1'],
+            ['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-s', 'source2']]:
+            
+            query_process = Popen(argument_configuration, stdout=PIPE)
+            (stdout, stderr) = query_process.communicate()
+            assert query_process.returncode == 0
+            assert stdout.strip() == '3f896076056ef80ca508daf1317bbd22bd29de3e'
+
+        # test --commit
+        update_process = Popen(['python', 'mz-update.py', '-c', 'etc/mwzoo_test.ini', '--update', '-t', 'tag3', '-s', 'source3'], stdin=PIPE, stdout=PIPE)
+        update_process.stdin.write('3f896076056ef80ca508daf1317bbd22bd29de3e\n')
+        (stdout, stderr) = update_process.communicate()
+        assert query_process.returncode == 0
+        assert 'saving changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        assert 'saved changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' not in stdout
+
+        # test update
+        update_process = Popen(['python', 'mz-update.py', '-c', 'etc/mwzoo_test.ini', '--update', '-t', 'tag3', '-s', 'source3', '--commit'], stdin=PIPE, stdout=PIPE)
+        update_process.stdin.write('3f896076056ef80ca508daf1317bbd22bd29de3e\n')
+        (stdout, stderr) = update_process.communicate()
+        assert query_process.returncode == 0
+        assert 'saving changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        assert 'saved changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+
+        # verify updates
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-S'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+
+        # look for the new tag
+        assert 'tag3' in stdout
+        assert 'source3' in stdout
+
+        # make sure old tags and sources are gone
+        assert 'tag1' not in stdout
+        assert 'tag2' not in stdout
+        assert 'source1' not in stdout
+        assert 'source2' not in stdout
+
+        # test append
+        update_process = Popen(['python', 'mz-update.py', '-c', 'etc/mwzoo_test.ini', '--append', '-t', 'tag4', '-s', 'source4', '--commit'], stdin=PIPE, stdout=PIPE)
+        update_process.stdin.write('3f896076056ef80ca508daf1317bbd22bd29de3e\n')
+        (stdout, stderr) = update_process.communicate()
+        assert query_process.returncode == 0
+        assert 'saving changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        assert 'saved changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+
+        # verify updates
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-S'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+
+        # look for the old and new tag
+        assert 'tag3' in stdout
+        assert 'tag4' in stdout
+        assert 'source3' in stdout
+        assert 'source4' in stdout
+
+        # test delete
+        update_process = Popen(['python', 'mz-update.py', '-c', 'etc/mwzoo_test.ini', '--delete', '-t', 'tag3', '-s', 'source3', '--commit'], stdin=PIPE, stdout=PIPE)
+        update_process.stdin.write('3f896076056ef80ca508daf1317bbd22bd29de3e\n')
+        (stdout, stderr) = update_process.communicate()
+        assert query_process.returncode == 0
+        assert 'saving changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        assert 'saved changes to 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+
+        # verify updates
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-S'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+
+        assert 'tag3' not in stdout
+        assert 'tag4' in stdout
+        assert 'source3' not in stdout
+        assert 'source4' in stdout
+        
+        # test delete sample    
+        update_process = Popen(['python', 'mz-update.py', '-c', 'etc/mwzoo_test.ini', '-D', '--commit'], stdin=PIPE, stdout=PIPE)
+        update_process.stdin.write('3f896076056ef80ca508daf1317bbd22bd29de3e\n')
+        (stdout, stderr) = update_process.communicate()
+        assert query_process.returncode == 0
+        assert 'deleting sample 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+        assert 'deleted sample 3f896076056ef80ca508daf1317bbd22bd29de3e' in stdout
+
+        # verify delete
+        query_process = Popen(['python', 'mz-query.py', '-c', 'etc/mwzoo_test.ini', '-S'], stdout=PIPE)
+        (stdout, stderr) = query_process.communicate()
+        assert query_process.returncode == 0
+        assert stdout.strip() == ''

@@ -452,6 +452,7 @@ class HTTPServer(resource.Resource):
         bind_host = global_config.get('networking', 'hostname')
         bind_port = global_config.getint('networking', 'port')
         reactor.listenTCP(bind_port, server.Site(self), interface=bind_host)
+        logging.info("started HTTPServer on {0}:{1}".format(bind_host, bind_port))
         reactor.run()
 
     def stop(self):
