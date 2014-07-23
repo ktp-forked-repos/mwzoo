@@ -1,10 +1,9 @@
-mwzoo
-=====
+# mwzoo
 
 Upload malware samples, run a bunch of analysis, record the output, then make it
 all available for manual analysis or export to other tools.
 
-Installation
+## Installation
 ```
 sudo apt-get install git python-twisted python-pip python-pefile python-pymongo yara ssdeep
 sudo pip install bitstring
@@ -23,12 +22,12 @@ sudo ln -s /opt/mwzoo/etc/profile.d/mwzoo.sh /etc/profile.d/mwzoo.sh
 source etc/profile.d/mwzoo.sh
 ```
 
-Starting Malware Zoo
+## Starting Malware Zoo
 ```
-    mwzoo.py
+mwzoo.py
 ```
 
-Using Malware Zoo
+## Using Malware Zoo
 ```
 # upload a sample tagged with "zbot" and "downloader" with a source of "osint"
 mz-submit.py -f zbot.exe -t zbot -s osint
@@ -51,7 +50,7 @@ mz-query.py -5 7a0dfc5353ff6de7de0208a29fa2ffc9 | mz-update --append -t rootkit 
 mz-query.py -t b9 | mq-update -D --commit
 ```
 
-Currently Supported Analysis Tools and Techniques
+## Currently Supported Analysis Tools and Techniques
  - ssdeep
  - yara
  - file type (uses system file command)
@@ -62,7 +61,7 @@ Currently Supported Analysis Tools and Techniques
 
 See the HACKING.txt for for docs on how to hack this thing up.
 
-Architecture:
+## Architecture:
  - XMLRPC interface for interacting with the zoo (requires binary content to be base64 encoded)
  - python twisted webserver accepts requests for storage and retrieval
  - files are stored on disk as-in
@@ -72,7 +71,7 @@ Architecture:
  - modular analysis architecture
  - unit testing written for nosetests
  
-Directory Layout:
+## Directory Layout:
 <pre>
 etc                  configuration files
 lib                  extra libraries
