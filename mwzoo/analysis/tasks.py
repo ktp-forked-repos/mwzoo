@@ -481,12 +481,10 @@ class CuckooAnalysis(ConfigurableAnalysisTask):
         for machine in target_machines:
             logging.info("submitting sample {0} to machine {1}".format(sample.md5_hash, machine))
             with open(sample.content_path, 'rb') as fp:
-                files = { 
-                    'file': ( sample.analysis['names'][0], fp ),
-                    'machine': machine
-                }
-
-                r = requests.post('{0}/tasks/create/file'.format(self.base_url), files=files)
+                r = requests.post(
+                    '{0}/tasks/create/file'.format(self.base_url), 
+                    files= { 'file': ( sample.analysis['names'][0], fp ) },
+                    data = { 'machine': machine })
                 if r.status_code != 200:
                     logging.error(
 "unable to submit sample {0} to machine {1}: {2}".format(
