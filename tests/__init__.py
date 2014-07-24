@@ -103,7 +103,7 @@ class http_server_test(unittest.TestCase):
         # load the test configuration
         mwzoo.load_global_config(TEST_CONFIG_PATH)
 
-        self.http_server = mwzoo.HTTPServer()
+        self.http_server = mwzoo.HTTPServer(mwzoo.MalwareZoo())
 
         from multiprocessing import Process
         self.server_process = Process(target=self._server_process)

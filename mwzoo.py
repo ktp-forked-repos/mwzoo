@@ -19,6 +19,9 @@ parser.add_argument(
 parser.add_argument(
     '--logging-config-path', action='store', dest='logging_config_path', default='etc/logging.ini', required=False,
     help='Path to logging configuration file for the malware zoo.')
+parser.add_argument(
+    '-m', '--maximum-process-count', action='store', dest='maximum_process_count', type=int, default=0, required=False,
+    help='Maximum number of processes to spawn to process samples.  Set to 0 for serial processing.')
 args = parser.parse_args()
 
 if args.mwzoo_home is not None:
@@ -39,5 +42,7 @@ logging.config.fileConfig(args.logging_config_path)
 
 mwzoo.load_global_config(args.config_path)
 
+zoo = mwzoo.MalwareZoo(args.maximum_process_count)
+zoo.start()
 logging.info("starting malware zoo http server")
-mwzoo.HTTPServer().start()
+mwzoo.HTTPServer(zoo).start()

@@ -16,6 +16,9 @@ import re
 import datetime
 import inspect
 from subprocess import Popen, PIPE
+import multiprocessing
+import threading
+import Queue
 
 # twisted
 from twisted.web import server, xmlrpc, resource
@@ -24,9 +27,6 @@ from twisted.internet import reactor
 # mongo
 from pymongo import MongoClient
 
-# distributed tasks
-#from celery import group
-from multiprocessing import Process
 
 # analysis tasks
 import mwzoo.analysis.tasks as mwzoo_tasks
@@ -436,17 +436,78 @@ Returns the list of tasks as callables."""
 
         return self.content_path
 
+class MalwareZoo(object):
+    def __init__(self, max_process_count=0):
+        self._max_process_count = max_process_count
+        # incoming mwzoo.Sample objects in multiprocessing mode
+        self._sample_queue = Queue.Queue()
+        # processes running mwzoo.Sample.process()
+        self._child_processes = []
+
+    def process(self, sample):
+        if self._max_process_count == 0:
+            return sample.process()
+        else:
+            self._sample_queue.put(sample)
+            return "queued for execution"
+
+    def start(self):
+        # are we doing multiprocessing?
+        if self._max_process_count > 0:
+            self._start_multiprocessing()
+
+    def _start_multiprocessing(self):
+        logging.info("starting multiprocessing")
+        self._processor = threading.Thread(target=self._multiprocessing_loop, name="Malware Zoo Processor")
+        self._processor.daemon = True
+        self._processor.start()
+        logging.info("started multiprocessing")
+
+    def _multiprocessing_loop(self):
+        while True:
+            try:
+                self._multiprocessing_execute()
+            except Exception, e:
+                logging.error(str(e))
+                traceback.print_exc()
+                time.sleep(1)
+
+    def _multiprocessing_execute(self):
+        # have any samples finished processing?
+        dead_children = [p for p in self._child_processes if not p.is_alive()]
+        for p in dead_children:
+            logging.debug("removing finshed process {0}".format(p))
+            self._child_processes.remove(p)
+
+        # any available slots for processing?
+        while len(self._child_processes) < self._max_process_count:
+            # get the next sample to process, wait forever if you have to
+            logging.debug("waiting for available sample")
+            sample = self._sample_queue.get()
+            assert isinstance(sample, Sample)
+            logging.debug("got sample {0}".format(sample))
+            # create a process to handle it
+            p = multiprocessing.Process(target=sample.process, name="Malware Zoo Sample Process")
+            p.daemon = True
+            p.start()
+            self._child_processes.append(p)
+
+        time.sleep(0.01) # don't consume the CPU
 
 class FileUploadHandler(xmlrpc.XMLRPC):
+    def __init__(self, zoo):
+        xmlrpc.XMLRPC.__init__(self)
+        self.zoo = zoo
+
     def xmlrpc_upload(self, file_name, file_content, tags, sources):
-        """Upload the given contents and record the included metadata."""
-        return Sample(file_name, base64.b64decode(file_content), tags, sources).process()
-        #return malware_zoo.save_sample(file_name, base64.b64decode(file_content))
+        """Process this!"""
+        return self.zoo.process(Sample(file_name, base64.b64decode(file_content), tags, sources))
 
 class HTTPServer(resource.Resource):
-    def __init__(self):
+    def __init__(self, zoo):
+        assert isinstance(zoo, MalwareZoo)
         resource.Resource.__init__(self)
-        self.putChild("upload", FileUploadHandler())
+        self.putChild("upload", FileUploadHandler(zoo))
 
     def start(self):
         bind_host = global_config.get('networking', 'hostname')
@@ -457,4 +518,3 @@ class HTTPServer(resource.Resource):
 
     def stop(self):
         reactor.stop()
-
